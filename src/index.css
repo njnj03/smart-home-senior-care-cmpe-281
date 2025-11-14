@@ -1,0 +1,16 @@
+
+@tailwind base; @tailwind components; @tailwind utilities;
+@layer base{ body{@apply text-gray-900} }
+@layer components{
+  .card{@apply bg-white border border-gray-200 rounded-2xl p-4 shadow-sm}
+  .kpi{@apply text-3xl font-extrabold}
+  .chip{@apply text-xs font-semibold px-2 py-1 rounded-full}
+  .chip-green{@apply bg-green-100 text-green-700}
+  .chip-yellow{@apply bg-yellow-100 text-yellow-700}
+  .chip-red{@apply bg-red-100 text-red-700}
+  .chip-purple{@apply bg-purple-100 text-purple-700}
+  .btn{@apply inline-flex items-center gap-1 rounded-xl border border-gray-200 px-3 py-2 text-sm bg-white hover:bg-gray-50}
+  .btn-primary{@apply bg-primary text-white border-primary hover:brightness-95}
+  .table{@apply w-full text-left}
+  .table th,.table td{@apply border-b border-gray-200 py-2}
+}
