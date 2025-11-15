@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Storage
+storage/audio/*
+!storage/audio/.gitkeep
+
+# Models (optional - uncomment if you don't want to commit model files)
+# models/*.keras
+# models/*.h5
+# models/*.pkl
+# models/*.pt
+# models/*.pth
+
+# Logs
+*.log
+
+# Database
+*.db
+*.sqlite
+
+# OS
+.DS_Store
+Thumbs.db
+
