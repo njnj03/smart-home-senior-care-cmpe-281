@@ -42,22 +42,20 @@ Backend API for the Smart Home Senior Care monitoring platform. Built with FastA
    
    **On Windows (Command Prompt):**
    ```cmd
-   copy env.template .env
+   copy .env.example .env
    ```
    
    **On Windows (PowerShell):**
    ```powershell
-   Copy-Item env.template .env
+   Copy-Item .env.example .env
    ```
    
    **On Linux/Mac:**
    ```bash
-   cp env.template .env
+   cp .env.example .env
    ```
    
    Then edit `.env` with your database connection string and other settings.
-   
-   **Note:** The `.env` file has been created for you. You just need to update the `DATABASE_URL` with your Supabase connection string.
 
 5. **Set up database**:
    - Your Supabase database should already have the schema (as per your SQL schema)
@@ -89,7 +87,7 @@ Backend API for the Smart Home Senior Care monitoring platform. Built with FastA
 
 ## Environment Variables
 
-See `env.template` for all available configuration options. Key variables:
+See `.env.example` for all available configuration options. Key variables:
 
 - `DATABASE_URL`: PostgreSQL connection string (required)
 - `CORS_ORIGINS_STR`: Comma-separated list of allowed frontend origins
@@ -224,7 +222,7 @@ backend/
 ├── storage/                 # Local file storage (created automatically)
 │   └── audio/
 ├── requirements.txt
-├── env.template
+├── .env.example
 ├── README.md
 └── README_MODELS.md
 ```
