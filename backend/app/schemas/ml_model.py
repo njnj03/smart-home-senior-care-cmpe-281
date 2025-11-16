@@ -18,6 +18,7 @@ class MLModelResponse(BaseModel):
     updated_at: datetime
     is_active: bool
     created_by_user_id: Optional[int] = None
+    file_exists: Optional[bool] = None  # Whether the file path exists
     
     class Config:
         from_attributes = True
@@ -44,6 +45,7 @@ class MLModelUpdate(BaseModel):
     """Schema for updating an ML model."""
     model_name: Optional[str] = None
     version: Optional[str] = None
+    file_path: Optional[str] = None
     description: Optional[str] = None
     model_type: Optional[str] = None
     accuracy: Optional[Decimal] = None
