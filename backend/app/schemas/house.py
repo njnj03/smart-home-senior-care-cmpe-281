@@ -13,6 +13,8 @@ class HouseResponse(BaseModel):
     city: Optional[str] = None
     state: Optional[str] = None
     zip_code: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     created_at: datetime
     updated_at: datetime
     is_active: bool
