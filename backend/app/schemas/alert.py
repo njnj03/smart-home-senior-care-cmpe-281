@@ -12,6 +12,7 @@ class AlertResponse(BaseModel):
     device_id: int
     event_id: Optional[int] = None
     alert_type_id: int
+    alert_type_name: Optional[str] = None
     rule_id: Optional[int] = None
     severity: str  # critical, high, medium, low
     status: str  # active, acknowledged, resolved, false_positive
