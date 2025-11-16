@@ -16,7 +16,7 @@ export default function AlertLiveMap(){
       setError(null)
       const [housesRes, alertsRes] = await Promise.all([
         api.getHouses(),
-        api.getAlerts({ status: 'active' })
+        api.getAlerts({ status: 'open' })
       ])
       setHouses(housesRes.data.houses || [])
       setAlerts(alertsRes.data.alerts || [])
