@@ -60,6 +60,17 @@ async def startup_event():
     logger.info(f"CORS origins: {settings.cors_origins}")
     logger.info(f"Storage path: {settings.storage_path}")
     
+    # Test database connection
+    try:
+        from app.database import AsyncSessionLocal
+        async with AsyncSessionLocal() as session:
+            # Test connection with a simple query
+            from sqlalchemy import text
+            await session.execute(text("SELECT 1"))
+            logger.info("✅ Database connection successful")
+    except Exception as e:
+        logger.error(f"❌ Database connection failed: {e}")
+    
     # Load active model from database
     try:
         from app.database import AsyncSessionLocal

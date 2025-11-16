@@ -76,6 +76,7 @@ async def check_db_health() -> bool:
         from sqlalchemy import text
         async with AsyncSessionLocal() as session:
             await session.execute(text("SELECT 1"))
+            logger.info("✅ Database connection successful")
             return True
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
