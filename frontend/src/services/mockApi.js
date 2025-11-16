@@ -14,6 +14,11 @@ export const db = {
     {id:'alert-1002',houseId:'H002',type:'inactivity',severity:'medium',status:'acknowledged',createdAt:new Date(Date.now()-35*60*1000).toISOString(),location:'Bedroom',confidence:0.75},
     {id:'alert-1003',houseId:'H003',type:'alarm',severity:'low',status:'resolved',createdAt:new Date(Date.now()-90*60*1000).toISOString(),location:'Garage',confidence:0.66},
   ],
+  models:[
+    {id:'model-1',name:'YAMNet Human v1.0',version:'1.0',status:'active',accuracy:0.92,createdAt:new Date(Date.now()-30*24*60*60*1000).toISOString()},
+    {id:'model-2',name:'YAMNet Human v1.1',version:'1.1',status:'inactive',accuracy:0.94,createdAt:new Date(Date.now()-15*24*60*60*1000).toISOString()},
+    {id:'model-3',name:'Custom Audio Classifier',version:'2.0',status:'inactive',accuracy:0.89,createdAt:new Date(Date.now()-7*24*60*60*1000).toISOString()},
+  ],
   metrics(){ const activeAlerts=this.alerts.filter(a=>a.status==='active').length; return{
     activeHouses:new Set(this.alerts.map(a=>a.houseId)).size, totalDevices:this.devices.length,
     onlineDevices:this.devices.filter(d=>d.status==='online').length, activeAlerts,
@@ -26,6 +31,8 @@ export const api={
     list.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)); return {status:'success', data:{alerts:list}} },
   async getDevices(){ return {status:'success', data:{devices: db.devices}} },
   async getHouses(){ return {status:'success', data:{houses: db.houses}} },
+  async getModels(){ return {status:'success', data:{models: db.models, active_model: db.models.find(m=>m.status==='active')}} },
+  async activateModel(id){ db.models.forEach(m=>m.status='inactive'); const m=db.models.find(x=>x.id===id); if(m) m.status='active'; return {status:'success'} },
   async ackAlert(id){ const a=db.alerts.find(x=>x.id===id); if(!a) return{status:'error'}; a.status='acknowledged'; a.acknowledgedAt=nowISO(); ws.broadcast({type:'alert_updated',payload:{id,status:'acknowledged'}}); return {status:'success', data:a} },
   async resolveAlert(id){ const a=db.alerts.find(x=>x.id===id); if(!a) return{status:'error'}; a.status='resolved'; a.resolvedAt=nowISO(); ws.broadcast({type:'alert_updated',payload:{id,status:'resolved'}}); return {status:'success', data:a} },
 }
