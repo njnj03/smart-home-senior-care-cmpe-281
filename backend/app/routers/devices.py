@@ -1,10 +1,12 @@
 """Devices router for device management."""
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from datetime import datetime  # <- timezone 제거
+from fastapi import APIRouter, Depends, HTTPException, Query, Body  # <- Body 추가
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
-from app.database import get_db
+
+from app.database import get_db                 # <- get_session 삭제
 from app.models.device import Device
 from app.models.house import House
 from app.models.device_type import DeviceType
@@ -15,6 +17,7 @@ from app.schemas.device import (
     DeviceListResponse,
     DeviceCreate,
     DeviceUpdate,
+    DeviceHeartbeatRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -166,6 +169,42 @@ async def update_device(
     
     return DeviceResponse.model_validate(device)
 
+@router.post("/{device_id}/heartbeat", response_model=DeviceResponse)
+async def device_heartbeat(
+    device_id: int,
+    payload: DeviceHeartbeatRequest | None = Body(None),  # 바디 없으면 None
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Receive a heartbeat from a device.
+    - Updates last_heartbeat to current UTC (naive datetime)
+    - If `status` provided, set it; otherwise default to 'online'
+    - Optionally updates firmware_version
+    """
+    # 1) device look up
+    query = select(Device).where(Device.device_id == device_id)
+    result = await db.execute(query)
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail=f"Device {device_id} not found")
+
+    # 2) heartbeat update 
+    device.last_heartbeat = datetime.utcnow()
+
+    # 3)
+    if payload:
+        if payload.status:
+            device.status = payload.status
+        if payload.firmware_version:
+            device.firmware_version = payload.firmware_version
+
+    # if not payload update to online
+    if not payload or not payload.status:
+        device.status = "online"
+
+    await db.commit()
+    await db.refresh(device)
+    return DeviceResponse.model_validate(device)
 
 @router.delete("/{device_id}", status_code=204)
 async def delete_device(

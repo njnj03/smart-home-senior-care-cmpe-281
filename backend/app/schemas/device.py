@@ -2,7 +2,7 @@
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
-
+from pydantic import BaseModel
 
 class DeviceResponse(BaseModel):
     """Schema for device response."""
@@ -48,3 +48,9 @@ class DeviceUpdate(BaseModel):
     firmware_version: Optional[str] = None
     status: Optional[str] = None  # online, offline, degraded, disabled
     is_enabled: Optional[bool] = None
+
+class DeviceHeartbeatRequest(BaseModel):
+    """Heartbeat payload from a device."""
+    status: Optional[str] = None              # e.g., "online", "degraded"
+    firmware_version: Optional[str] = None    # optional metadata
+    metrics: Optional[dict] = None            # optional device health metrics (ignored for now)
