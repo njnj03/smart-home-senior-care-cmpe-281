@@ -1,28 +1,35 @@
 
 import React from 'react'
 import api from '../services/api'
-import { slaBadge } from '../utils/format'
+import { slaBadge, formatPST } from '../utils/format'
+import DetailsPopup from '../components/DetailsPopup'
 
 export default function AlertHistory(){
   const [alerts,setAlerts]=React.useState([])
+  const [houses,setHouses]=React.useState([])
   const [q,setQ]=React.useState('')
   const [range,setRange]=React.useState(24)
   const [statusFilter,setStatusFilter]=React.useState('all')
   const [loading,setLoading]=React.useState(true)
   const [error,setError]=React.useState(null)
   const [actionLoading,setActionLoading]=React.useState(null)
+  const [selected,setSelected]=React.useState(null)
 
   const load=async()=>{
     try {
       setLoading(true)
       setError(null)
-      const res = await api.alerts.list({ limit: 1000 })
-      const items = (res.alerts || []).filter(a => {
+      const [alertsRes, housesRes] = await Promise.all([
+        api.alerts.list({ limit: 1000 }),
+        api.houses.list()
+      ])
+      const items = (alertsRes.alerts || []).filter(a => {
         const alertTime = new Date(a.created_at).getTime()
         const rangeMs = range * 3600 * 1000
         return (Date.now() - alertTime) < rangeMs
       })
       setAlerts(items)
+      setHouses(housesRes.houses || [])
       setLoading(false)
     } catch (err) {
       console.error('Error loading alerts:', err)
@@ -48,7 +55,9 @@ export default function AlertHistory(){
   React.useEffect(()=>{ load() },[range])
 
   const filtered=alerts.filter(a=> {
-    const matchesSearch = [a.alert_id, a.alert_type_id, a.house_id].join(' ').toLowerCase().includes(q.toLowerCase())
+    const house = houses.find(h=>h.house_id===a.house_id)
+    const houseName = house?.house_name || ''
+    const matchesSearch = [houseName, a.severity, a.status].join(' ').toLowerCase().includes(q.toLowerCase())
     const matchesStatus = statusFilter === 'all' || a.status === statusFilter
     return matchesSearch && matchesStatus
   })
@@ -65,10 +74,11 @@ export default function AlertHistory(){
           <input className="border rounded-xl px-3 py-2" placeholder="Search…" value={q} onChange={e=>setQ(e.target.value)} />
           <select className="border rounded-xl px-3 py-2" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
             <option value="all">All Status</option>
-            <option value="open">Open</option>
+            <option value="active">Active</option>
             <option value="acknowledged">Acknowledged</option>
             <option value="resolved">Resolved</option>
             <option value="dismissed">Dismissed</option>
+            <option value="false_positive">False Positive</option>
           </select>
           <select className="border rounded-xl px-3 py-2" value={range} onChange={e=>setRange(Number(e.target.value))}>
             <option value={6}>Last 6h</option>
@@ -76,16 +86,15 @@ export default function AlertHistory(){
             <option value={72}>Last 72h</option>
           </select>
         </div></div>
-      <table className="table"><thead><tr><th>ID</th><th>House</th><th>Type</th><th>Severity</th><th>Status</th><th>Created</th><th>Location</th><th>Actions</th></tr></thead>
-        <tbody>{filtered.map(a=>(<tr key={a.alert_id}>
-          <td>{a.alert_id}</td>
-          <td>{a.house_id}</td>
+      <table className="table"><thead><tr><th>House</th><th>Type</th><th>Severity</th><th>Status</th><th>Created</th><th>Location</th><th>Actions</th></tr></thead>
+        <tbody>{filtered.map(a=>{ const house=houses.find(h=>h.house_id===a.house_id); return (<tr key={a.alert_id} onClick={()=>setSelected(a)} className="cursor-pointer hover:bg-gray-50">
+          <td>{house?.house_name || a.house_id}</td>
           <td>{a.alert_type_id}</td>
           <td><span className={`chip ${severityChip(a.severity)}`}>{a.severity}</span></td>
           <td><span className={`chip ${statusChip(a.status)}`}>{a.status}</span></td>
-          <td>{new Date(a.created_at).toLocaleString('en-US', {timeZone: 'America/Los_Angeles'})}</td>
+          <td>{formatPST(a.created_at)}</td>
           <td>D{a.device_id}</td>
-          <td>
+          <td onClick={(e)=>e.stopPropagation()}>
             <div className="flex gap-1">
               {a.status==='active' && (
                 <button 
@@ -122,6 +131,8 @@ export default function AlertHistory(){
               )}
             </div>
           </td>
-        </tr>))}</tbody>
-      </table></div></div>)
+        </tr>)})}</tbody>
+      </table></div>
+      <DetailsPopup open={!!selected} alert={selected} onClose={()=>setSelected(null)} onUpdate={load} />
+    </div>)
 }

@@ -1,7 +1,7 @@
 
 import React from 'react'
 import api from '../services/api'
-import { chipByStatus } from '../utils/format'
+import { chipByStatus, formatPST } from '../utils/format'
 
 export default function IoTDeviceManager(){
   const [list,setList]=React.useState([])
@@ -140,11 +140,11 @@ export default function IoTDeviceManager(){
                 }}
               />
             </th>
-            <th>ID</th><th>House</th><th>Name</th><th>Location</th><th>Status</th><th>Last Heartbeat</th>
+            <th>House</th><th>Name</th><th>Location</th><th>Status</th><th>Last Heartbeat</th>
           </tr>
         </thead>
         <tbody>
-          {list.map(d=>(
+          {list.map(d=>{ const house=houses.find(h=>h.house_id===d.house_id); return (
             <tr key={d.device_id}>
               <td>
                 <input 
@@ -153,14 +153,13 @@ export default function IoTDeviceManager(){
                   onChange={() => toggleSelection(d.device_id)}
                 />
               </td>
-              <td>{d.device_id}</td>
-              <td>{d.house_id}</td>
+              <td>{house?.house_name || d.house_id}</td>
               <td>{d.device_name}</td>
               <td>{d.location}</td>
               <td><span className={`chip ${chipByStatus(d.status)}`}>{d.status}</span></td>
-              <td>{d.last_heartbeat ? new Date(d.last_heartbeat).toLocaleString('en-US', {timeZone: 'America/Los_Angeles'}) : 'Never'}</td>
+              <td>{formatPST(d.last_heartbeat) || 'Never'}</td>
             </tr>
-          ))}
+          )})}
         </tbody>
       </table>
     </div>

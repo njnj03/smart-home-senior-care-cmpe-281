@@ -14,3 +14,17 @@
   .table{@apply w-full text-left}
   .table th,.table td{@apply border-b border-gray-200 py-2}
 }
+
+/* Fix Leaflet map scrolling issues */
+.leaflet-container {
+  position: relative;
+  z-index: 0;
+}
+
+.leaflet-popup-pane {
+  z-index: 700 !important;
+}
+
+.leaflet-map-pane {
+  z-index: 400 !important;
+}
