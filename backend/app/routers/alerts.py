@@ -7,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func
 from app.database import get_db
 from app.models.alert import Alert
-from app.models.audit_log import AuditLog
+from app.models.house import House
+# Audit logs removed - not needed
 from app.schemas.alert import (
     AlertResponse,
     AlertListResponse,
@@ -33,7 +34,7 @@ async def list_alerts(
     """
     List alerts with optional filtering.
     """
-    query = select(Alert)
+    query = select(Alert, House.latitude, House.longitude).join(House, House.house_id == Alert.house_id)
     
     # Apply filters
     conditions = []
@@ -58,12 +59,16 @@ async def list_alerts(
     query = query.order_by(Alert.created_at.desc()).limit(limit).offset(offset)
     
     result = await db.execute(query)
-    alerts = result.scalars().all()
-    
-    return AlertListResponse(
-        alerts=[AlertResponse.model_validate(alert) for alert in alerts],
-        total=total or 0,
-    )
+    rows = result.all()
+
+    alerts = []
+    for alert, lat, lng in rows:
+        alert_obj = AlertResponse.model_validate(alert)
+        alert_obj.latitude = lat
+        alert_obj.longitude = lng
+        alerts.append(alert_obj)
+
+    return AlertListResponse(alerts=alerts, total=len(alerts))
 
 
 @router.get("/{alert_id}", response_model=AlertResponse)
@@ -109,21 +114,10 @@ async def acknowledge_alert(
         )
     
     # Update alert
-    old_status = alert.status
     alert.status = "acknowledged"
     alert.acknowledged_at = datetime.utcnow()
     if request.notes:
         alert.notes = request.notes
-    
-    # Create audit log entry
-    audit_entry = AuditLog(
-        action_type="alert_acknowledged",
-        affected_entity="alerts",
-        affected_entity_id=alert_id,
-        old_value={"status": old_status},
-        new_value={"status": "acknowledged", "notes": request.notes},
-    )
-    db.add(audit_entry)
     
     await db.commit()
     
@@ -157,21 +151,10 @@ async def resolve_alert(
         )
     
     # Update alert
-    old_status = alert.status
     alert.status = "resolved"
     alert.resolved_at = datetime.utcnow()
     if request.notes:
         alert.notes = request.notes
-    
-    # Create audit log entry
-    audit_entry = AuditLog(
-        action_type="alert_resolved",
-        affected_entity="alerts",
-        affected_entity_id=alert_id,
-        old_value={"status": old_status},
-        new_value={"status": "resolved", "notes": request.notes},
-    )
-    db.add(audit_entry)
     
     await db.commit()
     
@@ -205,20 +188,9 @@ async def dismiss_alert(
         )
     
     # Update alert
-    old_status = alert.status
     alert.status = "false_positive"
     if request.notes:
         alert.notes = request.notes
-    
-    # Create audit log entry
-    audit_entry = AuditLog(
-        action_type="alert_dismissed",
-        affected_entity="alerts",
-        affected_entity_id=alert_id,
-        old_value={"status": old_status},
-        new_value={"status": "false_positive", "notes": request.notes},
-    )
-    db.add(audit_entry)
     
     await db.commit()
     

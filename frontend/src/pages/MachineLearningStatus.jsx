@@ -7,6 +7,7 @@ export default function MachineLearningStatus(){
   const [activeModel, setActiveModel] = React.useState(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState(null)
+  const [showModal, setShowModal] = React.useState(false)
 
   React.useEffect(()=>{ 
     (async()=>{
@@ -27,6 +28,7 @@ export default function MachineLearningStatus(){
 
   const handleActivate = async (modelId) => {
     try {
+      await api.models.activate(modelId)
       await api.models.activate(modelId)
       // Refresh models
       const res = await api.models.list()
@@ -73,6 +75,13 @@ export default function MachineLearningStatus(){
           </div>
         ))}
       </div>
-    </div>
-  </div>)
+      
+      <ModelManagementModal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        models={models}
+        onUpdate={loadModels}
+      />
+    </>
+  )
 }

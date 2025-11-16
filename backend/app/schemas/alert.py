@@ -19,6 +19,8 @@ class AlertResponse(BaseModel):
     created_at: datetime
     acknowledged_at: Optional[datetime] = None
     resolved_at: Optional[datetime] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     notes: Optional[str] = None
     
     class Config:
