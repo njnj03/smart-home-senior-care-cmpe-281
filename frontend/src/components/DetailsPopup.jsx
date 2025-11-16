@@ -2,6 +2,7 @@
 import React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import api from '../services/api'
+import { formatPST } from '../utils/format'
 
 export default function DetailsPopup({open,onClose,alert,onUpdate}){
   const [loading, setLoading] = React.useState(false)
@@ -40,7 +41,7 @@ export default function DetailsPopup({open,onClose,alert,onUpdate}){
           <div><span className="text-gray-500">Device:</span> {alert.device_id || 'N/A'}</div>
           <div><span className="text-gray-500">Severity:</span> <span className={`chip ${severityChip(alert.severity)}`}>{alert.severity}</span></div>
           <div><span className="text-gray-500">Status:</span> {alert.status}</div>
-          <div><span className="text-gray-500">Created:</span> {new Date(alert.created_at || alert.createdAt).toLocaleString('en-US', {timeZone: 'America/Los_Angeles'})}</div>
+          <div><span className="text-gray-500">Created:</span> {formatPST(alert.created_at || alert.createdAt)}</div>
           {(alert.confidence_score || alert.confidence) && <div><span className="text-gray-500">Confidence:</span> {((alert.confidence_score || alert.confidence)*100).toFixed(0)}%</div>}
         </div>
         {alert.notes && <div className="mt-2 p-2 bg-gray-50 rounded text-sm"><span className="text-gray-500">Notes:</span> {alert.notes}</div>}

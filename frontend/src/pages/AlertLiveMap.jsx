@@ -3,6 +3,7 @@ import React from 'react'
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import api from '../services/api'
+import { formatPST } from '../utils/format'
 
 export default function AlertLiveMap(){
   const [houses,setHouses]=React.useState([])
@@ -40,12 +41,12 @@ export default function AlertLiveMap(){
   
   return (<div className="max-w-6xl mx-auto p-4">
     <div className="card"><h3 className="font-bold mb-2">Smart Home Cloud Dashboard</h3>
-      <MapContainer center={center} zoom={9} style={{height:'520px', width:'100%', borderRadius:'14px'}}>
+      <MapContainer center={center} zoom={9} scrollWheelZoom={true} style={{height:'520px', width:'100%', borderRadius:'14px'}}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         {houses.map(h=> h.latitude && h.longitude ? <Marker key={h.house_id} position={[h.latitude,h.longitude]}><Popup><div className="font-semibold">{h.house_name}</div><div className="text-xs text-gray-500">ID {h.house_id}</div></Popup></Marker> : null)}
         {alerts.slice(0,30).map(a=>{ const house=houses.find(h=>h.house_id===a.house_id); if(!house || !house.latitude || !house.longitude) return null; return (
           <CircleMarker key={a.alert_id} center={[house.latitude,house.longitude]} radius={10} pathOptions={{color: colorBySeverity(a.severity)}}>
-            <Popup><div className="font-semibold">Alert {a.alert_id}</div><div className="text-xs">Severity: {a.severity} • Status: {a.status}</div><div className="text-xs text-gray-500">{new Date(a.created_at).toLocaleString('en-US', {timeZone: 'America/Los_Angeles'})}</div></Popup>
+            <Popup><div className="font-semibold">Alert {a.alert_id}</div><div className="text-xs">Severity: {a.severity} • Status: {a.status}</div><div className="text-xs text-gray-500">{formatPST(a.created_at)}</div></Popup>
           </CircleMarker>)})}
       </MapContainer>
     </div></div>)

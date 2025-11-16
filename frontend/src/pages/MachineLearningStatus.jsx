@@ -1,6 +1,7 @@
 
 import React from 'react'
 import api from '../services/api'
+import { formatPSTDate } from '../utils/format'
 
 export default function MachineLearningStatus(){
   const [models, setModels] = React.useState([])
@@ -60,7 +61,7 @@ export default function MachineLearningStatus(){
           <div key={m.model_id} className="flex items-center justify-between border rounded-lg p-3">
             <div>
               <div className="font-semibold">{m.model_name}</div>
-              <div className="text-sm text-gray-500">v{m.version} • Created {new Date(m.created_at).toLocaleDateString('en-US', {timeZone: 'America/Los_Angeles'})}</div>
+              <div className="text-sm text-gray-500">v{m.version} • Created {formatPSTDate(m.created_at)}</div>
               {m.accuracy && <div className="text-sm text-gray-600">Accuracy: {(m.accuracy * 100).toFixed(1)}%</div>}
             </div>
             <button 
