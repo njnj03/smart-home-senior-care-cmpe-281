@@ -15,7 +15,7 @@ export const formatPST = (timestamp) => {
     hour12: true
   }
   const pstDate = new Date(timestamp).toLocaleString('en-US', options)
-  return `${pstDate} PST`
+  return `${pstDate}`
 }
 
 export const formatPSTDate = (timestamp) => {
