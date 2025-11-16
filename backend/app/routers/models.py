@@ -183,7 +183,8 @@ async def activate_model(
     if not model:
         raise HTTPException(status_code=404, detail=f"Model {model_id} not found")
     
-    # Deactivate all models
+    # Deactivate all models FIRST (before activating new one)
+    # This prevents unique constraint violation
     deactivate_query = select(MLModel).where(MLModel.is_active == True)
     deactivate_result = await db.execute(deactivate_query)
     active_models = deactivate_result.scalars().all()
@@ -191,7 +192,10 @@ async def activate_model(
     for active_model in active_models:
         active_model.is_active = False
     
-    # Activate the selected model
+    # Flush to ensure deactivation is applied before activating new model
+    await db.flush()
+    
+    # Now activate the selected model
     model.is_active = True
     
     await db.commit()
