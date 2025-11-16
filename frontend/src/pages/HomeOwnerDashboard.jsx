@@ -77,9 +77,9 @@ export default function HomeOwnerDashboard(){
       {alerts.length === 0 ? (
         <div className="text-center py-8 text-gray-500">No active alerts</div>
       ) : (
-        <table className="table mt-2"><thead><tr><th>House</th><th>Severity</th><th>Status</th><th>Created</th></tr></thead>
+        <table className="table mt-2"><thead><tr><th>House</th><th>Type</th><th>Severity</th><th>Status</th><th>Created</th></tr></thead>
           <tbody>{alerts.map(a=>{ const house=houses.find(h=>h.house_id===a.house_id); return (<tr key={a.alert_id} className="hover:bg-gray-50 cursor-pointer" onClick={()=>setSelected(a)}>
-            <td>{house?.house_name || a.house_id}</td><td><span className={`chip ${chip(a.severity)}`}>{a.severity}</span></td>
+            <td>{house?.house_name || a.house_id}</td><td>{a.alert_type_name || a.alert_type_id}</td><td><span className={`chip ${chip(a.severity)}`}>{a.severity}</span></td>
             <td><span className={`chip ${statusChip(a.status)}`}>{a.status}</span></td>
             <td>{formatPST(a.created_at)}</td>
           </tr>)})}</tbody></table>

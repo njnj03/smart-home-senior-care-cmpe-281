@@ -18,6 +18,14 @@ export default function IoTDeviceManager(){
     deviceType: 'sensor',
     status: 'offline'
   })
+  const [showAddHouse, setShowAddHouse] = React.useState(false)
+  const [newHouse, setNewHouse] = React.useState({
+    name: '',
+    address: '',
+    city: '',
+    state: '',
+    zipCode: ''
+  })
 
   const loadDevices = async () => {
     try {
@@ -38,6 +46,31 @@ export default function IoTDeviceManager(){
   }
 
   React.useEffect(()=>{ loadDevices() },[])
+
+  const handleAddHouse = async () => {
+    if (!newHouse.name || !newHouse.address) {
+      alert('Please fill in required fields (Name and Address)')
+      return
+    }
+    
+    try {
+      const result = await api.houses.create({
+        house_name: newHouse.name,
+        address: newHouse.address,
+        city: newHouse.city || 'Unknown',
+        state: newHouse.state || 'CA',
+        zip_code: newHouse.zipCode || '00000'
+      })
+      
+      await loadDevices() // Reload to get the new house
+      setNewDevice({...newDevice, houseId: result.house.house_id})
+      setShowAddHouse(false)
+      setNewHouse({ name: '', address: '', city: '', state: '', zipCode: '' })
+      alert('House added successfully!')
+    } catch (err) {
+      alert('Error adding house: ' + err.message)
+    }
+  }
 
   const handleAddDevice = async () => {
     if (!newDevice.name || !newDevice.houseId) {
@@ -181,14 +214,23 @@ export default function IoTDeviceManager(){
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700">House ID *</label>
-              <select
-                className="w-full border rounded-xl px-3 py-2 mt-1"
-                value={newDevice.houseId}
-                onChange={(e) => setNewDevice({...newDevice, houseId: e.target.value})}
-              >
-                <option value="">Select House</option>
-                {houses.map(h => <option key={h.house_id} value={h.house_id}>{h.house_name} ({h.house_id})</option>)}
-              </select>
+              <div className="flex gap-2 mt-1">
+                <select
+                  className="flex-1 border rounded-xl px-3 py-2"
+                  value={newDevice.houseId}
+                  onChange={(e) => setNewDevice({...newDevice, houseId: e.target.value})}
+                >
+                  <option value="">Select House</option>
+                  {houses.map(h => <option key={h.house_id} value={h.house_id}>{h.house_name}</option>)}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowAddHouse(true)}
+                  className="btn bg-green-500 text-white px-4 py-2 rounded-xl hover:bg-green-600 whitespace-nowrap"
+                >
+                  + New House
+                </button>
+              </div>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700">Room/Location</label>
@@ -245,6 +287,82 @@ export default function IoTDeviceManager(){
             </button>
             <button 
               onClick={() => setShowAddDialog(false)}
+              className="flex-1 btn bg-gray-200 py-2 rounded-xl hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {showAddHouse && (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={() => setShowAddHouse(false)}>
+        <div className="bg-white rounded-2xl p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+          <h3 className="text-xl font-bold mb-4">Add New House</h3>
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium text-gray-700">House Name *</label>
+              <input 
+                type="text"
+                className="w-full border rounded-xl px-3 py-2 mt-1"
+                value={newHouse.name}
+                onChange={(e) => setNewHouse({...newHouse, name: e.target.value})}
+                placeholder="Smith Residence"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Address *</label>
+              <input 
+                type="text"
+                className="w-full border rounded-xl px-3 py-2 mt-1"
+                value={newHouse.address}
+                onChange={(e) => setNewHouse({...newHouse, address: e.target.value})}
+                placeholder="123 Main St"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">City</label>
+              <input 
+                type="text"
+                className="w-full border rounded-xl px-3 py-2 mt-1"
+                value={newHouse.city}
+                onChange={(e) => setNewHouse({...newHouse, city: e.target.value})}
+                placeholder="San Jose"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">State</label>
+              <input 
+                type="text"
+                className="w-full border rounded-xl px-3 py-2 mt-1"
+                value={newHouse.state}
+                onChange={(e) => setNewHouse({...newHouse, state: e.target.value})}
+                placeholder="CA"
+                maxLength={2}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">ZIP Code</label>
+              <input 
+                type="text"
+                className="w-full border rounded-xl px-3 py-2 mt-1"
+                value={newHouse.zipCode}
+                onChange={(e) => setNewHouse({...newHouse, zipCode: e.target.value})}
+                placeholder="95112"
+                maxLength={10}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 mt-6">
+            <button 
+              onClick={handleAddHouse}
+              className="flex-1 btn bg-green-500 text-white py-2 rounded-xl hover:bg-green-600"
+            >
+              Add House
+            </button>
+            <button 
+              onClick={() => setShowAddHouse(false)}
               className="flex-1 btn bg-gray-200 py-2 rounded-xl hover:bg-gray-300"
             >
               Cancel

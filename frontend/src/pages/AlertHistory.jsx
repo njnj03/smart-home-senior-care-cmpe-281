@@ -57,7 +57,7 @@ export default function AlertHistory(){
   const filtered=alerts.filter(a=> {
     const house = houses.find(h=>h.house_id===a.house_id)
     const houseName = house?.house_name || ''
-    const matchesSearch = [houseName, a.severity, a.status].join(' ').toLowerCase().includes(q.toLowerCase())
+    const matchesSearch = [houseName, a.alert_type_name, a.severity, a.status].join(' ').toLowerCase().includes(q.toLowerCase())
     const matchesStatus = statusFilter === 'all' || a.status === statusFilter
     return matchesSearch && matchesStatus
   })
@@ -89,7 +89,7 @@ export default function AlertHistory(){
       <table className="table"><thead><tr><th>House</th><th>Type</th><th>Severity</th><th>Status</th><th>Created</th><th>Location</th><th>Actions</th></tr></thead>
         <tbody>{filtered.map(a=>{ const house=houses.find(h=>h.house_id===a.house_id); return (<tr key={a.alert_id} onClick={()=>setSelected(a)} className="cursor-pointer hover:bg-gray-50">
           <td>{house?.house_name || a.house_id}</td>
-          <td>{a.alert_type_id}</td>
+          <td>{a.alert_type_name || a.alert_type_id}</td>
           <td><span className={`chip ${severityChip(a.severity)}`}>{a.severity}</span></td>
           <td><span className={`chip ${statusChip(a.status)}`}>{a.status}</span></td>
           <td>{formatPST(a.created_at)}</td>
