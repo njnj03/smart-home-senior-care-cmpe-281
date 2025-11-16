@@ -62,6 +62,15 @@ export default function AlertHistory(){
     return matchesSearch && matchesStatus
   })
   
+  const getLocation = (alert) => {
+    const house = houses.find(h=>h.house_id===alert.house_id)
+    if (!house) return 'Unknown'
+    const parts = []
+    if (house.city) parts.push(house.city)
+    if (house.state) parts.push(house.state)
+    return parts.length > 0 ? parts.join(', ') : house.address || 'Unknown'
+  }
+  
   const statusChip=(status)=> status==='active'?'bg-blue-100 text-blue-800': status==='acknowledged'?'bg-yellow-100 text-yellow-800': status==='resolved'?'bg-green-100 text-green-800': status==='dismissed'?'bg-gray-100 text-gray-800':'bg-gray-100 text-gray-800'
   const severityChip=(severity)=> severity==='high'?'bg-red-100 text-red-800': severity==='medium'?'bg-orange-100 text-orange-800':'bg-green-100 text-green-800'
 
@@ -93,7 +102,7 @@ export default function AlertHistory(){
           <td><span className={`chip ${severityChip(a.severity)}`}>{a.severity}</span></td>
           <td><span className={`chip ${statusChip(a.status)}`}>{a.status}</span></td>
           <td>{formatPST(a.created_at)}</td>
-          <td>D{a.device_id}</td>
+          <td className="text-sm">{getLocation(a)}</td>
           <td onClick={(e)=>e.stopPropagation()}>
             <div className="flex gap-1">
               {a.status==='active' && (
