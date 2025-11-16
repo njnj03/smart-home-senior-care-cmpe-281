@@ -7,7 +7,7 @@ from sqlalchemy import select, func
 from app.models.event import Event
 from app.models.alert import Alert
 from app.models.alert_type import AlertType
-from app.models.audit_log import AuditLog
+# Audit logs removed - not needed
 from app.schemas.inference import InferenceResponse
 from app.config import settings
 from decimal import Decimal
@@ -141,24 +141,6 @@ class PolicyEngine:
         
         db.add(alert)
         await db.flush()  # Flush to get the alert_id
-        
-        # Create audit log entry for alert creation
-        audit_entry = AuditLog(
-            action_type="alert_created",
-            affected_entity="alerts",
-            affected_entity_id=alert.alert_id,
-            old_value=None,
-            new_value={
-                "alert_id": alert.alert_id,
-                "status": "active",
-                "severity": severity,
-                "policy_rule": policy_rule,
-                "inference_label": inference_result.label,
-                "inference_score": float(inference_result.score),
-            },
-        )
-        
-        db.add(audit_entry)
         
         logger.info(f"Created alert {alert.alert_id} for event {event_id} (policy: {policy_rule})")
         

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func
 from app.database import get_db
 from app.models.alert import Alert
-from app.models.audit_log import AuditLog
+# Audit logs removed - not needed
 from app.schemas.alert import (
     AlertResponse,
     AlertListResponse,
@@ -109,21 +109,10 @@ async def acknowledge_alert(
         )
     
     # Update alert
-    old_status = alert.status
     alert.status = "acknowledged"
     alert.acknowledged_at = datetime.utcnow()
     if request.notes:
         alert.notes = request.notes
-    
-    # Create audit log entry
-    audit_entry = AuditLog(
-        action_type="alert_acknowledged",
-        affected_entity="alerts",
-        affected_entity_id=alert_id,
-        old_value={"status": old_status},
-        new_value={"status": "acknowledged", "notes": request.notes},
-    )
-    db.add(audit_entry)
     
     await db.commit()
     
@@ -157,21 +146,10 @@ async def resolve_alert(
         )
     
     # Update alert
-    old_status = alert.status
     alert.status = "resolved"
     alert.resolved_at = datetime.utcnow()
     if request.notes:
         alert.notes = request.notes
-    
-    # Create audit log entry
-    audit_entry = AuditLog(
-        action_type="alert_resolved",
-        affected_entity="alerts",
-        affected_entity_id=alert_id,
-        old_value={"status": old_status},
-        new_value={"status": "resolved", "notes": request.notes},
-    )
-    db.add(audit_entry)
     
     await db.commit()
     
@@ -205,20 +183,9 @@ async def dismiss_alert(
         )
     
     # Update alert
-    old_status = alert.status
     alert.status = "false_positive"
     if request.notes:
         alert.notes = request.notes
-    
-    # Create audit log entry
-    audit_entry = AuditLog(
-        action_type="alert_dismissed",
-        affected_entity="alerts",
-        affected_entity_id=alert_id,
-        old_value={"status": old_status},
-        new_value={"status": "false_positive", "notes": request.notes},
-    )
-    db.add(audit_entry)
     
     await db.commit()
     
