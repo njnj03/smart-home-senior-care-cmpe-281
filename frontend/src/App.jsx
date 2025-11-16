@@ -10,15 +10,22 @@ import SettingsPage from './pages/SettingsPage'
 import MachineLearningStatus from './pages/MachineLearningStatus'
 
 export default function App(){
-  const [user, setUser] = React.useState(null)
+  const [user, setUser] = React.useState(() => {
+    // Initialize from localStorage
+    const savedUser = localStorage.getItem('smartHomeUser')
+    return savedUser ? JSON.parse(savedUser) : null
+  })
   const [showProfile, setShowProfile] = React.useState(false)
   
   const handleSignIn = (userData) => {
     setUser(userData)
+    localStorage.setItem('smartHomeUser', JSON.stringify(userData))
   }
   
   const handleSignOut = () => {
     setUser(null)
+    localStorage.removeItem('smartHomeUser')
+    setShowProfile(false)
   }
   
   if (!user) {

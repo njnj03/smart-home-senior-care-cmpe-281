@@ -74,27 +74,26 @@ export default function IoTDeviceManager(){
 
   const handleAddDevice = async () => {
     if (!newDevice.name || !newDevice.houseId) {
-      alert('Please fill in required fields (Name and House ID)')
+      alert('Please fill in required fields (Name and House)')
       return
     }
     
     try {
-      // TODO: Backend needs POST /devices endpoint
-      // For now, show message that this feature needs backend implementation
-      alert('Add device functionality requires backend POST /devices endpoint to be implemented')
+      await api.devices.create({
+        house_id: parseInt(newDevice.houseId),
+        device_type_id: 1, // Default device type - you can make this dynamic
+        device_name: newDevice.name,
+        location: newDevice.room || 'Unknown',
+        mac_address: newDevice.macAddress || null,
+        firmware_version: null,
+        status: newDevice.status,
+        is_enabled: true
+      })
       
-      // When backend is ready, uncomment:
-      // await api.devices.create({
-      //   device_name: newDevice.name,
-      //   house_id: newDevice.houseId,
-      //   location: newDevice.room || 'Unknown',
-      //   device_type_id: 1, // Default type
-      //   status: newDevice.status
-      // })
-      // await loadDevices()
-      
+      await loadDevices()
       setShowAddDialog(false)
       setNewDevice({ name: '', houseId: '', room: '', macAddress: '', deviceType: 'sensor', status: 'offline' })
+      alert('Device added successfully!')
     } catch (err) {
       alert('Error adding device: ' + err.message)
     }
@@ -109,16 +108,12 @@ export default function IoTDeviceManager(){
     if (!confirm(`Delete ${selectedDevices.size} device(s)?`)) return
     
     try {
-      // TODO: Backend needs DELETE /devices/{id} endpoint
-      alert('Delete device functionality requires backend DELETE /devices/{id} endpoint to be implemented')
-      
-      // When backend is ready, uncomment:
-      // await Promise.all(
-      //   Array.from(selectedDevices).map(id => api.devices.delete(id))
-      // )
-      // await loadDevices()
-      
+      await Promise.all(
+        Array.from(selectedDevices).map(id => api.devices.delete(id))
+      )
+      await loadDevices()
       setSelectedDevices(new Set())
+      alert('Devices deleted successfully!')
     } catch (err) {
       alert('Error deleting devices: ' + err.message)
     }

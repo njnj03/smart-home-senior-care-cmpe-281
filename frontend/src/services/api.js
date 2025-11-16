@@ -119,6 +119,35 @@ const api = {
     async get(deviceId) {
       return api.request(`/api/v1/devices/${deviceId}`);
     },
+
+    /**
+     * Create a new device
+     */
+    async create(deviceData) {
+      return api.request('/api/v1/devices', {
+        method: 'POST',
+        body: JSON.stringify(deviceData),
+      });
+    },
+
+    /**
+     * Update device details
+     */
+    async update(deviceId, deviceData) {
+      return api.request(`/api/v1/devices/${deviceId}`, {
+        method: 'PUT',
+        body: JSON.stringify(deviceData),
+      });
+    },
+
+    /**
+     * Delete a device
+     */
+    async delete(deviceId) {
+      return api.request(`/api/v1/devices/${deviceId}`, {
+        method: 'DELETE',
+      });
+    },
   },
 
   /**
@@ -137,6 +166,16 @@ const api = {
      */
     async get(houseId) {
       return api.request(`/api/v1/houses/${houseId}`);
+    },
+
+    /**
+     * Create a new house
+     */
+    async create(houseData) {
+      return api.request('/api/v1/houses', {
+        method: 'POST',
+        body: JSON.stringify(houseData),
+      });
     },
   },
 
