@@ -8,6 +8,7 @@ from sqlalchemy import select, and_, func
 from app.database import get_db
 from app.models.alert import Alert
 from app.models.house import House
+from app.models.alert_type import AlertType
 # Audit logs removed - not needed
 from app.schemas.alert import (
     AlertResponse,
@@ -34,7 +35,11 @@ async def list_alerts(
     """
     List alerts with optional filtering.
     """
-    query = select(Alert, House.latitude, House.longitude).join(House, House.house_id == Alert.house_id)
+    query = select(Alert, House.latitude, House.longitude, AlertType.type_name).join(
+        House, House.house_id == Alert.house_id
+    ).join(
+        AlertType, AlertType.alert_type_id == Alert.alert_type_id
+    )
     
     # Apply filters
     conditions = []
@@ -62,13 +67,14 @@ async def list_alerts(
     rows = result.all()
 
     alerts = []
-    for alert, lat, lng in rows:
+    for alert, lat, lng, alert_type_name in rows:
         alert_obj = AlertResponse.model_validate(alert)
         alert_obj.latitude = lat
         alert_obj.longitude = lng
+        alert_obj.alert_type_name = alert_type_name
         alerts.append(alert_obj)
 
-    return AlertListResponse(alerts=alerts, total=len(alerts))
+    return AlertListResponse(alerts=alerts, total=total or 0)
 
 
 @router.get("/{alert_id}", response_model=AlertResponse)
@@ -79,14 +85,25 @@ async def get_alert(
     """
     Get alert details by ID.
     """
-    query = select(Alert).where(Alert.alert_id == alert_id)
-    result = await db.execute(query)
-    alert = result.scalar_one_or_none()
+    query = select(Alert, House.latitude, House.longitude, AlertType.type_name).join(
+        House, House.house_id == Alert.house_id
+    ).join(
+        AlertType, AlertType.alert_type_id == Alert.alert_type_id
+    ).where(Alert.alert_id == alert_id)
     
-    if not alert:
+    result = await db.execute(query)
+    row = result.first()
+    
+    if not row:
         raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
     
-    return AlertResponse.model_validate(alert)
+    alert, lat, lng, alert_type_name = row
+    alert_obj = AlertResponse.model_validate(alert)
+    alert_obj.latitude = lat
+    alert_obj.longitude = lng
+    alert_obj.alert_type_name = alert_type_name
+    
+    return alert_obj
 
 
 @router.post("/{alert_id}/acknowledge", response_model=AlertResponse)
@@ -99,12 +116,19 @@ async def acknowledge_alert(
     Acknowledge an alert.
     Valid transitions: active -> acknowledged
     """
-    query = select(Alert).where(Alert.alert_id == alert_id)
-    result = await db.execute(query)
-    alert = result.scalar_one_or_none()
+    query = select(Alert, House.latitude, House.longitude, AlertType.type_name).join(
+        House, House.house_id == Alert.house_id
+    ).join(
+        AlertType, AlertType.alert_type_id == Alert.alert_type_id
+    ).where(Alert.alert_id == alert_id)
     
-    if not alert:
+    result = await db.execute(query)
+    row = result.first()
+    
+    if not row:
         raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
+    
+    alert, lat, lng, alert_type_name = row
     
     # Validate state transition
     if alert.status != "active":
@@ -123,7 +147,12 @@ async def acknowledge_alert(
     
     logger.info(f"Alert {alert_id} acknowledged")
     
-    return AlertResponse.model_validate(alert)
+    alert_obj = AlertResponse.model_validate(alert)
+    alert_obj.latitude = lat
+    alert_obj.longitude = lng
+    alert_obj.alert_type_name = alert_type_name
+    
+    return alert_obj
 
 
 @router.post("/{alert_id}/resolve", response_model=AlertResponse)
@@ -136,12 +165,19 @@ async def resolve_alert(
     Resolve an alert.
     Valid transitions: active -> resolved, acknowledged -> resolved
     """
-    query = select(Alert).where(Alert.alert_id == alert_id)
-    result = await db.execute(query)
-    alert = result.scalar_one_or_none()
+    query = select(Alert, House.latitude, House.longitude, AlertType.type_name).join(
+        House, House.house_id == Alert.house_id
+    ).join(
+        AlertType, AlertType.alert_type_id == Alert.alert_type_id
+    ).where(Alert.alert_id == alert_id)
     
-    if not alert:
+    result = await db.execute(query)
+    row = result.first()
+    
+    if not row:
         raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
+    
+    alert, lat, lng, alert_type_name = row
     
     # Validate state transition
     if alert.status not in ["active", "acknowledged"]:
@@ -160,7 +196,12 @@ async def resolve_alert(
     
     logger.info(f"Alert {alert_id} resolved")
     
-    return AlertResponse.model_validate(alert)
+    alert_obj = AlertResponse.model_validate(alert)
+    alert_obj.latitude = lat
+    alert_obj.longitude = lng
+    alert_obj.alert_type_name = alert_type_name
+    
+    return alert_obj
 
 
 @router.post("/{alert_id}/dismiss", response_model=AlertResponse)
@@ -173,12 +214,19 @@ async def dismiss_alert(
     Dismiss an alert (mark as false_positive).
     Valid transitions: active -> false_positive, acknowledged -> false_positive
     """
-    query = select(Alert).where(Alert.alert_id == alert_id)
-    result = await db.execute(query)
-    alert = result.scalar_one_or_none()
+    query = select(Alert, House.latitude, House.longitude, AlertType.type_name).join(
+        House, House.house_id == Alert.house_id
+    ).join(
+        AlertType, AlertType.alert_type_id == Alert.alert_type_id
+    ).where(Alert.alert_id == alert_id)
     
-    if not alert:
+    result = await db.execute(query)
+    row = result.first()
+    
+    if not row:
         raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
+    
+    alert, lat, lng, alert_type_name = row
     
     # Validate state transition
     if alert.status not in ["active", "acknowledged"]:
@@ -196,4 +244,9 @@ async def dismiss_alert(
     
     logger.info(f"Alert {alert_id} dismissed")
     
-    return AlertResponse.model_validate(alert)
+    alert_obj = AlertResponse.model_validate(alert)
+    alert_obj.latitude = lat
+    alert_obj.longitude = lng
+    alert_obj.alert_type_name = alert_type_name
+    
+    return alert_obj
