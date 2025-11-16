@@ -1,249 +1,160 @@
-#!/usr/bin/env python3
 """
-Simple IoT Audio Simulator
---------------------------
-This script simulates an IoT device by uploading WAV audio files to the backend
-ingestion API endpoint:
+Unified IoT Device Simulator
+============================
+This script simulates two kinds of device behavior against your FastAPI backend:
 
-  POST /api/v1/ingest/event   (multipart/form-data)
+  1) AUDIO INGEST:
+     Upload one or more WAV audio files to
+       POST /api/v1/ingest/event
 
-# Send one file once
-python simulate_device.py --file simulator/audio/5-9032-A.wav --house-id 2 --device-id 2
+  2) HEARTBEAT:
+     Periodically send a heartbeat to
+       POST /api/v1/devices/{device_id}/heartbeat
 
-# Send first 3 WAVs in a folder, 5 seconds apart (small, safe test)
-python simulate_device.py --dir simulator/audio --house-id 2 --device-id 2 --limit 3 --sleep 5
+The tool uses **sub-commands**:
+  - audio       -> send audio files
+  - heartbeat   -> send periodic heartbeat
 
-# Use a fixed timestamp (e.g., to match demo script)
-python simulate_device.py --file simulator/audio/5-9032-A.wav --house-id 2 --device-id 2 --timestamp 2025-11-15T12:00:00Z
+Examples:
 
-Environment
------------
-BACKEND_URL: base URL for the API (default: http://127.0.0.1:8000)
+# AUDIO: send one file
+python simulate_device.py audio --file simulator/audio/5-9032-A.wav --house-id 2 --device-id 2
 
-Exit Codes
-----------
-0 = success, 1 = partial/total failure, 2 = missing dependency
+# AUDIO: send first 3 files from a folder, 5 seconds apart
+python simulate_device.py audio --dir simulator/audio --house-id 2 --device-id 2 --limit 3 --sleep 5
+
+# AUDIO: fixed timestamp (ISO 8601, UTC)
+python simulate_device.py audio --file simulator/audio/5-9032-A.wav --house-id 2 --device-id 2 --timestamp 2025-11-15T12:00:00Z
+
+# HEARTBEAT: send 5 beats, 10 seconds apart
+python simulate_device.py heartbeat --device-id 2 --interval 10 --count 5 --status online --firmware 1.0.3
+
+# HEARTBEAT: run indefinitely every 30s (Ctrl+C to stop)
+python simulate_device.py heartbeat --device-id 2 --interval 30
 """
 
 from __future__ import annotations
-
-import os
-import sys
-import time
-import argparse
+import os, sys, time, argparse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Optional
 
 try:
-    import requests  # HTTP client for Python
+    import requests
 except ImportError:
-    print("ERROR: This script requires the 'requests' package.\n"
-          "Install it with:  pip install requests", file=sys.stderr)
+    print("ERROR: This script requires the 'requests' package. Install with:\n  pip install requests", file=sys.stderr)
     sys.exit(2)
 
-
-# Default backend URL (can be overridden by BACKEND_URL env or --backend flag)
 DEFAULT_BACKEND = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 
-
+# ------------------------- Helpers -------------------------
 def iso_utc_now() -> str:
-    """Return current time as ISO-8601 string in UTC without microseconds."""
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
-
+# ------------------------- AUDIO INGEST ---------------------
 def iter_wavs(directory: Path) -> Iterable[Path]:
-    """Yield .wav files in the directory in sorted order."""
     for p in sorted(directory.glob("*.wav")):
         if p.is_file():
             yield p
 
-
-def post_ingest(
-    backend: str,
-    house_id: int,
-    device_id: int,
-    timestamp: str,
-    audio_path: Path,
-    timeout: int = 60,
-) -> dict:
-    """
-    POST a single audio file to the ingestion endpoint.
-    Returns the JSON payload (dict) from the server or raises on HTTP error.
-    """
+def post_ingest(backend: str, house_id: int, device_id: int, timestamp: str, audio_path: Path, timeout: int = 60) -> dict:
     url = f"{backend.rstrip('/')}/api/v1/ingest/event"
-
-    # Use a context manager to ensure the file handle is closed.
     with open(audio_path, "rb") as f:
-        files = {
-            # (filename, fileobj, mimetype)
-            "audio_file": (audio_path.name, f, "audio/wav"),
-        }
-        data = {
-            "house_id": str(house_id),
-            "device_id": str(device_id),
-            "timestamp": timestamp,  # must be ISO-8601
-        }
-        # NOTE: Do not set Content-Type header here; 'requests' handles multipart.
+        files = {"audio_file": (audio_path.name, f, "audio/wav")}
+        data = {"house_id": str(house_id), "device_id": str(device_id), "timestamp": timestamp}
         resp = requests.post(url, files=files, data=data, timeout=timeout)
-
-    # Try to decode JSON regardless of success/failure for better error messages
     try:
         payload = resp.json()
     except Exception:
         payload = {"raw": resp.text}
-
     if not resp.ok:
-        # Raise a meaningful error including status and any server-provided detail
-        detail = payload.get("detail") if isinstance(payload, dict) else payload
-        raise RuntimeError(f"HTTP {resp.status_code} from {url}: {detail}")
-
+        raise RuntimeError(f"HTTP {resp.status_code}: {payload}")
     return payload
 
-
-def build_arg_parser() -> argparse.ArgumentParser:
-    """Create and return an argument parser."""
-    parser = argparse.ArgumentParser(
-        description="Simulate an IoT device by uploading WAV files to /api/v1/ingest/event"
-    )
-
-    # Exactly one of --file or --dir is required
-    src = parser.add_mutually_exclusive_group(required=True)
-    src.add_argument("--file", type=str, help="Single .wav file to send")
-    src.add_argument("--dir", type=str, help="Directory containing .wav files")
-
-    parser.add_argument("--house-id", type=int, required=True, help="House ID (integer)")
-    parser.add_argument("--device-id", type=int, required=True, help="Device ID (integer)")
-
-    parser.add_argument(
-        "--backend",
-        type=str,
-        default=DEFAULT_BACKEND,
-        help=f"Backend base URL (default from BACKEND_URL env or {DEFAULT_BACKEND})",
-    )
-    parser.add_argument(
-        "--timestamp",
-        type=str,
-        help="Optional ISO-8601 UTC timestamp (e.g., 2025-11-15T12:00:00Z). "
-             "If omitted, current UTC time is used for each file.",
-    )
-    parser.add_argument(
-        "--sleep",
-        type=float,
-        default=0.0,
-        help="Seconds to sleep between files (default: 0). Helpful to throttle uploads.",
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        help="Maximum number of files to send from the directory (ignored for --file).",
-    )
-    parser.add_argument(
-        "--continue-on-error",
-        action="store_true",
-        help="Do not stop on first error; continue with remaining files.",
-    )
-    parser.add_argument(
-        "--timeout",
-        type=int,
-        default=60,
-        help="HTTP request timeout in seconds (default: 60).",
-    )
-
-    return parser
-
-
-def resolve_files(args: argparse.Namespace) -> list[Path]:
-    """Resolve and return the list of files to send based on --file or --dir."""
+def cmd_audio(args: argparse.Namespace) -> int:
     if args.file:
-        p = Path(args.file)
-        if not p.exists():
-            raise FileNotFoundError(f"File not found: {p}")
-        if p.suffix.lower() != ".wav":
-            raise ValueError(f"Not a .wav file: {p}")
-        return [p]
+        files = [Path(args.file)]
+    else:
+        d = Path(args.dir)
+        files = list(iter_wavs(d))
+        if args.limit is not None: files = files[: args.limit]
+    print(f"[audio] Sending {len(files)} file(s) to {args.backend}")
+    for i, path in enumerate(files, 1):
+        ts = args.timestamp or iso_utc_now()
+        print(f"[{i}/{len(files)}] Uploading {path.name} ... ", end="", flush=True)
+        try:
+            payload = post_ingest(args.backend, args.house_id, args.device_id, ts, path)
+            print("OK")
+        except Exception as e:
+            print(f"FAIL ({e})")
+            if not args.continue_on_error: return 1
+        if args.sleep and i < len(files): time.sleep(args.sleep)
+    return 0
 
-    # Directory mode
-    d = Path(args.dir)
-    if not d.exists():
-        raise FileNotFoundError(f"Directory not found: {d}")
-    files = list(iter_wavs(d))
-    if not files:
-        print(f"WARNING: No .wav files found in {d}", file=sys.stderr)
-    if args.limit is not None and args.limit >= 0:
-        files = files[: args.limit]
-    return files
+# ------------------------- HEARTBEAT ------------------------
+def post_heartbeat(backend: str, device_id: int, status: str | None, firmware: str | None, timeout: int = 30) -> dict:
+    url = f"{backend.rstrip('/')}/api/v1/devices/{device_id}/heartbeat"
+    payload = {}
+    if status: payload["status"] = status
+    if firmware: payload["firmware_version"] = firmware
+    resp = requests.post(url, json=payload, timeout=timeout)
+    try:
+        body = resp.json()
+    except Exception:
+        body = {"raw": resp.text}
+    if not resp.ok:
+        raise RuntimeError(f"HTTP {resp.status_code}: {body}")
+    return body
 
+def cmd_heartbeat(args: argparse.Namespace) -> int:
+    print(f"[hb] Backend: {args.backend}  Device: {args.device_id}  Every {args.interval}s")
+    i = 0
+    try:
+        while True:
+            i += 1
+            print(f"[{i}] → heartbeat status={args.status or 'online'} ... ", end="", flush=True)
+            try:
+                body = post_heartbeat(args.backend, args.device_id, args.status, args.firmware)
+                print("OK")
+            except Exception as e:
+                print(f"FAIL ({e})")
+            if args.count and i >= args.count: break
+            time.sleep(args.interval)
+    except KeyboardInterrupt:
+        print("\n[hb] Stopped.")
+    return 0
+
+# ------------------------- CLI Parser -----------------------
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description="Unified IoT Device Simulator (audio ingest + heartbeat)")
+    p.add_argument("--backend", type=str, default=DEFAULT_BACKEND)
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    a = sub.add_parser("audio", help="Send WAV files to ingestion endpoint")
+    src = a.add_mutually_exclusive_group(required=True)
+    src.add_argument("--file", type=str)
+    src.add_argument("--dir", type=str)
+    a.add_argument("--house-id", type=int, required=True)
+    a.add_argument("--device-id", type=int, required=True)
+    a.add_argument("--timestamp", type=str)
+    a.add_argument("--sleep", type=float, default=0)
+    a.add_argument("--limit", type=int)
+    a.add_argument("--continue-on-error", action="store_true")
+    a.set_defaults(func=cmd_audio)
+
+    hb = sub.add_parser("heartbeat", help="Send periodic heartbeat")
+    hb.add_argument("--device-id", type=int, required=True)
+    hb.add_argument("--interval", type=float, default=30)
+    hb.add_argument("--count", type=int)
+    hb.add_argument("--status", type=str)
+    hb.add_argument("--firmware", type=str)
+    hb.set_defaults(func=cmd_heartbeat)
+    return p
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = build_arg_parser()
+    parser = build_parser()
     args = parser.parse_args(argv)
-
-    try:
-        files = resolve_files(args)
-    except Exception as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        return 1
-
-    if not files:
-        # Nothing to do (no .wav files). Not an error, so exit 0.
-        print("[sim] No files to send. Exiting.")
-        return 0
-
-    print(f"[sim] Backend:   {args.backend}")
-    print(f"[sim] House ID:  {args.house_id}")
-    print(f"[sim] Device ID: {args.device_id}")
-    print(f"[sim] Files:     {len(files)} to upload")
-    failures = 0
-
-    for idx, path in enumerate(files, start=1):
-        # Use provided timestamp or generate a fresh UTC timestamp per file
-        ts = args.timestamp or iso_utc_now()
-        print(f"[{idx}/{len(files)}] → Uploading {path.name}  ts={ts} ... ", end="", flush=True)
-
-        try:
-            payload = post_ingest(
-                backend=args.backend,
-                house_id=args.house_id,
-                device_id=args.device_id,
-                timestamp=ts,
-                audio_path=path,
-                timeout=args.timeout,
-            )
-
-            # Try to read out useful fields for quick feedback
-            event_id = None
-            is_processed = None
-            if isinstance(payload, dict):
-                event_id = payload.get("event_id") or payload.get("event", {}).get("event_id")
-                is_processed = payload.get("is_processed") or payload.get("event", {}).get("is_processed")
-
-            print("OK")
-            if event_id is not None:
-                print(f"      event_id={event_id}  is_processed={is_processed}")
-            else:
-                # Fallback: show compact payload
-                print(f"      response={str(payload)[:200]}")
-
-        except Exception as e:
-            failures += 1
-            print("FAIL")
-            print(f"      Error: {e}", file=sys.stderr)
-            if not args.continue_on_error:
-                # Stop immediately on first failure unless flag is set
-                return 1
-
-        # Optional delay between files
-        if args.sleep > 0 and idx < len(files):
-            try:
-                time.sleep(args.sleep)
-            except KeyboardInterrupt:
-                print("\n[sim] Interrupted by user.")
-                return 1
-
-    print(f"[sim] Done. Failures: {failures}")
-    return 0 if failures == 0 else 1
-
+    return args.func(args)
 
 if __name__ == "__main__":
     raise SystemExit(main())
