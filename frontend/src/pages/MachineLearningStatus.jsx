@@ -7,7 +7,7 @@ export default function MachineLearningStatus(){
   const [activeModel, setActiveModel] = React.useState(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState(null)
-  const [showModal, setShowModal] = React.useState(false)
+  const [activating, setActivating] = React.useState(null)
 
   React.useEffect(()=>{ 
     (async()=>{
@@ -28,15 +28,17 @@ export default function MachineLearningStatus(){
 
   const handleActivate = async (modelId) => {
     try {
-      await api.models.activate(modelId)
+      setActivating(modelId)
       await api.models.activate(modelId)
       // Refresh models
       const res = await api.models.list()
       setModels(res.models || [])
       setActiveModel(res.active_model)
+      setActivating(null)
     } catch (err) {
       console.error('Error activating model:', err)
       setError(err.message)
+      setActivating(null)
     }
   }
 
@@ -63,25 +65,20 @@ export default function MachineLearningStatus(){
             </div>
             <button 
               onClick={() => handleActivate(m.model_id)}
-              disabled={m.is_active}
+              disabled={m.is_active || activating === m.model_id}
               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 m.is_active
                   ? 'bg-gray-100 text-gray-500 cursor-default' 
+                  : activating === m.model_id
+                  ? 'bg-blue-400 text-white cursor-wait'
                   : 'bg-blue-500 text-white hover:bg-blue-600'
               }`}
             >
-              {m.is_active ? 'Active' : 'Activate'}
+              {m.is_active ? 'Active' : activating === m.model_id ? 'Activating...' : 'Activate'}
             </button>
           </div>
         ))}
       </div>
-      
-      <ModelManagementModal
-        open={showModal}
-        onClose={() => setShowModal(false)}
-        models={models}
-        onUpdate={loadModels}
-      />
-    </>
-  )
+    </div>
+  </div>)
 }
