@@ -27,6 +27,8 @@ async def list_models(
     """
     List all ML models with active model highlighted.
     """
+    from pathlib import Path
+    
     query = select(MLModel).order_by(MLModel.created_at.desc())
     result = await db.execute(query)
     models = result.scalars().all()
@@ -34,9 +36,27 @@ async def list_models(
     # Find active model
     active_model = next((m for m in models if m.is_active), None)
     
+    # Check file existence for each model
+    backend_root = Path(__file__).parent.parent.parent
+    model_responses = []
+    for model in models:
+        model_file_path = backend_root / model.file_path
+        file_exists = model_file_path.exists()
+        model_dict = MLModelResponse.model_validate(model).model_dump()
+        model_dict['file_exists'] = file_exists
+        model_responses.append(MLModelResponse(**model_dict))
+    
+    active_model_response = None
+    if active_model:
+        active_model_file_path = backend_root / active_model.file_path
+        file_exists = active_model_file_path.exists()
+        active_dict = MLModelResponse.model_validate(active_model).model_dump()
+        active_dict['file_exists'] = file_exists
+        active_model_response = MLModelResponse(**active_dict)
+    
     return MLModelListResponse(
-        models=[MLModelResponse.model_validate(model) for model in models],
-        active_model=MLModelResponse.model_validate(active_model) if active_model else None,
+        models=model_responses,
+        active_model=active_model_response,
     )
 
 
@@ -47,6 +67,8 @@ async def get_active_model(
     """
     Get the currently active model.
     """
+    from pathlib import Path
+    
     query = select(MLModel).where(MLModel.is_active == True)
     result = await db.execute(query)
     model = result.scalar_one_or_none()
@@ -54,7 +76,14 @@ async def get_active_model(
     if not model:
         raise HTTPException(status_code=404, detail="No active model found")
     
-    return MLModelResponse.model_validate(model)
+    # Check file existence
+    backend_root = Path(__file__).parent.parent.parent
+    model_file_path = backend_root / model.file_path
+    file_exists = model_file_path.exists()
+    
+    model_dict = MLModelResponse.model_validate(model).model_dump()
+    model_dict['file_exists'] = file_exists
+    return MLModelResponse(**model_dict)
 
 
 @router.get("/{model_id}", response_model=MLModelResponse)
@@ -65,6 +94,8 @@ async def get_model(
     """
     Get model details by ID.
     """
+    from pathlib import Path
+    
     query = select(MLModel).where(MLModel.model_id == model_id)
     result = await db.execute(query)
     model = result.scalar_one_or_none()
@@ -72,7 +103,14 @@ async def get_model(
     if not model:
         raise HTTPException(status_code=404, detail=f"Model {model_id} not found")
     
-    return MLModelResponse.model_validate(model)
+    # Check file existence
+    backend_root = Path(__file__).parent.parent.parent
+    model_file_path = backend_root / model.file_path
+    file_exists = model_file_path.exists()
+    
+    model_dict = MLModelResponse.model_validate(model).model_dump()
+    model_dict['file_exists'] = file_exists
+    return MLModelResponse(**model_dict)
 
 
 @router.post("", response_model=MLModelResponse, status_code=201)
@@ -151,6 +189,8 @@ async def update_model(
     
     if model_data.version is not None:
         model.version = model_data.version
+    if model_data.file_path is not None:
+        model.file_path = model_data.file_path
     if model_data.description is not None:
         model.description = model_data.description
     if model_data.model_type is not None:
@@ -183,6 +223,23 @@ async def activate_model(
     if not model:
         raise HTTPException(status_code=404, detail=f"Model {model_id} not found")
     
+    # Check if model file exists BEFORE making any database changes
+    from pathlib import Path
+    backend_root = Path(__file__).parent.parent.parent
+    model_file_path = backend_root / model.file_path
+    
+    if not model_file_path.exists():
+        logger.error(f"Model file not found: {model_file_path}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Model file not found at path: {model.file_path}"
+        )
+    
+    # Store previous active model for potential rollback
+    previous_active_query = select(MLModel).where(MLModel.is_active == True)
+    previous_active_result = await db.execute(previous_active_query)
+    previous_active_model = previous_active_result.scalar_one_or_none()
+    
     # Deactivate all models FIRST (before activating new one)
     # This prevents unique constraint violation
     deactivate_query = select(MLModel).where(MLModel.is_active == True)
@@ -198,31 +255,23 @@ async def activate_model(
     # Now activate the selected model
     model.is_active = True
     
-    await db.commit()
-    await db.refresh(model)
-    
-    # Hot-reload the model in inference service
+    # Try to load the model in inference service before committing
     try:
-        from pathlib import Path
-        backend_root = Path(__file__).parent.parent.parent
-        model_file_path = backend_root / model.file_path
-        
-        if model_file_path.exists():
-            inference_service.load_model(str(model_file_path))
-            inference_service.current_model_id = model.model_id
-            logger.info(f"Activated and reloaded model: {model.model_name} (ID: {model_id})")
-        else:
-            logger.error(f"Model file not found: {model_file_path}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Model file not found at path: {model.file_path}"
-            )
-    except HTTPException:
-        raise
+        inference_service.load_model(str(model_file_path))
+        inference_service.current_model_id = model.model_id
+        logger.info(f"Activated and reloaded model: {model.model_name} (ID: {model_id})")
     except Exception as e:
         logger.error(f"Failed to reload model: {e}", exc_info=True)
-        # Don't fail the request, but log the error
-        # The model is still marked as active in DB
+        # Rollback database changes
+        await db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to load model: {str(e)}"
+        )
+    
+    # Only commit if model loading was successful
+    await db.commit()
+    await db.refresh(model)
     
     return MLModelResponse.model_validate(model)
 
@@ -242,6 +291,17 @@ async def delete_model(
     
     if not model:
         raise HTTPException(status_code=404, detail=f"Model {model_id} not found")
+    
+    # Check if this is the only model
+    count_query = select(MLModel)
+    count_result = await db.execute(count_query)
+    total_models = len(count_result.scalars().all())
+    
+    if total_models <= 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete the only model. Please add another model first."
+        )
     
     if model.is_active:
         raise HTTPException(

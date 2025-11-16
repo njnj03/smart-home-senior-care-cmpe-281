@@ -29,6 +29,11 @@ const api = {
         throw new Error(error.detail || `HTTP ${response.status}`);
       }
 
+      // Handle 204 No Content responses (e.g., DELETE requests)
+      if (response.status === 204) {
+        return null;
+      }
+
       return await response.json();
     } catch (error) {
       console.error(`API Error [${endpoint}]:`, error);
