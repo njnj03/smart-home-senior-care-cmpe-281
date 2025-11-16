@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func
 from app.database import get_db
 from app.models.alert import Alert
+from app.models.house import House
 # Audit logs removed - not needed
 from app.schemas.alert import (
     AlertResponse,
@@ -33,7 +34,7 @@ async def list_alerts(
     """
     List alerts with optional filtering.
     """
-    query = select(Alert)
+    query = select(Alert, House.latitude, House.longitude).join(House, House.house_id == Alert.house_id)
     
     # Apply filters
     conditions = []
@@ -58,12 +59,16 @@ async def list_alerts(
     query = query.order_by(Alert.created_at.desc()).limit(limit).offset(offset)
     
     result = await db.execute(query)
-    alerts = result.scalars().all()
-    
-    return AlertListResponse(
-        alerts=[AlertResponse.model_validate(alert) for alert in alerts],
-        total=total or 0,
-    )
+    rows = result.all()
+
+    alerts = []
+    for alert, lat, lng in rows:
+        alert_obj = AlertResponse.model_validate(alert)
+        alert_obj.latitude = lat
+        alert_obj.longitude = lng
+        alerts.append(alert_obj)
+
+    return AlertListResponse(alerts=alerts, total=len(alerts))
 
 
 @router.get("/{alert_id}", response_model=AlertResponse)

@@ -9,6 +9,7 @@ from app.models.device_type import DeviceType
 from app.models.alert_type import AlertType
 from app.models.alert_rule import AlertRule
 from app.models.ml_model import MLModel
+from app.models.user import User
 
 __all__ = [
     "Event",
@@ -21,4 +22,5 @@ __all__ = [
     "AlertType",
     "AlertRule",
     "MLModel",
+    "User",
 ]

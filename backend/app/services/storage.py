@@ -30,13 +30,12 @@ class StorageService:
         Returns:
             Path to the saved file (relative to storage root)
         """
-        # Create subdirectory structure: house_id/device_id/
-        house_dir = self.storage_path / house_id / device_id
-        house_dir.mkdir(parents=True, exist_ok=True)
+        # Store audio file under storage/audio
+        self.storage_path.mkdir(parents=True, exist_ok=True)
         
         # Generate unique filename
         filename = f"{uuid.uuid4().hex}.wav"  # Assuming WAV format, adjust as needed
-        file_path = house_dir / filename
+        file_path = self.storage_path / filename
         
         # Write file
         with open(file_path, "wb") as f:
