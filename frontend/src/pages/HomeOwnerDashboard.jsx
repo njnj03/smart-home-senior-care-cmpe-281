@@ -3,6 +3,7 @@ import React from 'react'
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import api from '../services/api'
+import { api as mockApi } from '../services/mockApi'
 import DetailsPopup from '../components/DetailsPopup'
 import { slaBadge } from '../utils/format'
 
@@ -19,13 +20,14 @@ export default function HomeOwnerDashboard(){
     try {
       setError(null)
       const [metricsRes, alertsRes, devicesRes, housesRes] = await Promise.all([
-        api.metrics.get(),
-        api.alerts.list({ status: 'open', limit: 100 }),
+        mockApi.getMetrics(), // Use mock for metrics
+        // api.metrics.get(), // Real API - commented out
+        api.alerts.list({ status: 'active' }),
         api.devices.list(),
         api.houses.list()
       ])
       
-      setMetrics(metricsRes)
+      setMetrics(metricsRes.data)
       setAlerts(alertsRes.alerts || [])
       setDevices(devicesRes.devices || [])
       setHouses(housesRes.houses || [])
@@ -48,7 +50,7 @@ export default function HomeOwnerDashboard(){
   if(!metrics) return <div className="max-w-6xl mx-auto p-4">No data available</div>
 
   const chip=(sev)=> sev==='high'?'chip-red': sev==='medium'?'chip-yellow':'chip-green'
-  const statusChip=(status)=> status==='open'?'bg-blue-100 text-blue-800': status==='acknowledged'?'bg-yellow-100 text-yellow-800': status==='resolved'?'bg-green-100 text-green-800': status==='dismissed'?'bg-gray-100 text-gray-800':'bg-gray-100 text-gray-800'
+  const statusChip=(status)=> status==='active'?'bg-blue-100 text-blue-800': status==='acknowledged'?'bg-yellow-100 text-yellow-800': status==='resolved'?'bg-green-100 text-green-800': status==='dismissed'?'bg-gray-100 text-gray-800':'bg-gray-100 text-gray-800'
   const colorBySeverity=(s)=> s==='high'?'red': s==='medium'?'orange':'green'
   const center=[37.6,-122.1]
   
@@ -63,20 +65,20 @@ export default function HomeOwnerDashboard(){
       <h3 className="font-bold mb-2">Alert Live Map</h3>
       <MapContainer center={center} zoom={9} style={{height:'420px', width:'100%', borderRadius:'14px'}}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        {houses.map(h=> <Marker key={h.house_id} position={[h.latitude,h.longitude]}><Popup><div className="font-semibold">{h.house_name}</div><div className="text-xs text-gray-500">ID {h.house_id}</div></Popup></Marker>)}
-        {alerts.slice(0,30).map(a=>{ const house=houses.find(h=>h.house_id===a.house_id); if(!house) return null; return (
+        {houses.map(h=> h.latitude && h.longitude ? <Marker key={h.house_id} position={[h.latitude,h.longitude]}><Popup><div className="font-semibold">{h.house_name}</div><div className="text-xs text-gray-500">ID {h.house_id}</div></Popup></Marker> : null)}
+        {alerts.slice(0,30).map(a=>{ const house=houses.find(h=>h.house_id===a.house_id); if(!house || !house.latitude || !house.longitude) return null; return (
           <CircleMarker key={a.alert_id} center={[house.latitude,house.longitude]} radius={10} pathOptions={{color: colorBySeverity(a.severity)}}>
-            <Popup><div className="font-semibold">Alert {a.alert_id}</div><div className="text-xs">Severity: {a.severity} • Status: {a.status}</div><div className="text-xs text-gray-500">{new Date(a.created_at).toLocaleString()}</div></Popup>
+            <Popup><div className="font-semibold">Alert {a.alert_id}</div><div className="text-xs">Severity: {a.severity} • Status: {a.status}</div><div className="text-xs text-gray-500">{new Date(a.created_at).toLocaleString('en-US', {timeZone: 'America/Los_Angeles'})}</div></Popup>
           </CircleMarker>)})}
       </MapContainer>
     </div>
     <div className="card">
       <div className="flex justify-between items-center"><h3 className="font-bold">Active Alerts</h3></div>
-      <table className="table mt-2"><thead><tr><th>ID</th><th>House</th><th>Type</th><th>Severity</th><th>Status</th><th>Created</th><th>Device</th></tr></thead>
+      <table className="table mt-2"><thead><tr><th>ID</th><th>House</th><th>Severity</th><th>Status</th><th>Created</th></tr></thead>
         <tbody>{alerts.map(a=>(<tr key={a.alert_id} className="hover:bg-gray-50 cursor-pointer" onClick={()=>setSelected(a)}>
-          <td>{a.alert_id}</td><td>{a.house_id}</td><td>{a.alert_type_id}</td><td><span className={`chip ${chip(a.severity)}`}>{a.severity}</span></td>
+          <td>{a.alert_id}</td><td>{a.house_id}</td><td><span className={`chip ${chip(a.severity)}`}>{a.severity}</span></td>
           <td><span className={`chip ${statusChip(a.status)}`}>{a.status}</span></td>
-          <td>{new Date(a.created_at).toLocaleString()}</td><td>D{a.device_id}</td>
+          <td>{new Date(a.created_at).toLocaleString('en-US', {timeZone: 'America/Los_Angeles'})}</td>
         </tr>))}</tbody></table></div>
     <div className="card"><h3 className="font-bold mb-2">Devices</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">{devices.map(d=>(<div key={d.device_id} className="flex items-center justify-between border border-gray-100 rounded-xl p-3">

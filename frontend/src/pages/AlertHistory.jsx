@@ -48,12 +48,13 @@ export default function AlertHistory(){
   React.useEffect(()=>{ load() },[range])
 
   const filtered=alerts.filter(a=> {
-    const matchesSearch = [a.id, a.type, a.houseId].join(' ').toLowerCase().includes(q.toLowerCase())
+    const matchesSearch = [a.alert_id, a.alert_type_id, a.house_id].join(' ').toLowerCase().includes(q.toLowerCase())
     const matchesStatus = statusFilter === 'all' || a.status === statusFilter
     return matchesSearch && matchesStatus
   })
   
-  const statusChip=(status)=> status==='open'?'bg-blue-100 text-blue-800': status==='acknowledged'?'bg-yellow-100 text-yellow-800': status==='resolved'?'bg-green-100 text-green-800': status==='dismissed'?'bg-gray-100 text-gray-800':'bg-gray-100 text-gray-800'
+  const statusChip=(status)=> status==='active'?'bg-blue-100 text-blue-800': status==='acknowledged'?'bg-yellow-100 text-yellow-800': status==='resolved'?'bg-green-100 text-green-800': status==='dismissed'?'bg-gray-100 text-gray-800':'bg-gray-100 text-gray-800'
+  const severityChip=(severity)=> severity==='high'?'bg-red-100 text-red-800': severity==='medium'?'bg-orange-100 text-orange-800':'bg-green-100 text-green-800'
 
   if(loading) return <div className="max-w-6xl mx-auto p-4">Loading…</div>
   if(error) return <div className="max-w-6xl mx-auto p-4 text-red-600">Error: {error}</div>
@@ -80,23 +81,23 @@ export default function AlertHistory(){
           <td>{a.alert_id}</td>
           <td>{a.house_id}</td>
           <td>{a.alert_type_id}</td>
-          <td>{a.severity}</td>
+          <td><span className={`chip ${severityChip(a.severity)}`}>{a.severity}</span></td>
           <td><span className={`chip ${statusChip(a.status)}`}>{a.status}</span></td>
-          <td>{new Date(a.created_at).toLocaleString()}</td>
+          <td>{new Date(a.created_at).toLocaleString('en-US', {timeZone: 'America/Los_Angeles'})}</td>
           <td>D{a.device_id}</td>
           <td>
             <div className="flex gap-1">
-              {a.status==='open' && (
+              {a.status==='active' && (
                 <button 
                   onClick={() => handleAction(a.alert_id, 'ack')}
-                  disabled={actionLoading === a.alert_id + 'ack'
+                  disabled={actionLoading === a.alert_id + 'ack'}
                   className="text-xs px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 disabled:opacity-50"
                   title="Acknowledge"
                 >
                   Ack
                 </button>
               )}
-              {(a.status==='open' || a.status==='acknowledged') && (
+              {(a.status==='active' || a.status==='acknowledged') && (
                 <>
                   <button 
                     onClick={() => handleAction(a.alert_id, 'resolve')}
@@ -108,7 +109,7 @@ export default function AlertHistory(){
                   </button>
                   <button 
                     onClick={() => handleAction(a.alert_id, 'dismiss')}
-                    disabled={actionLoading === a.alert_id + 'dismiss'
+                    disabled={actionLoading === a.alert_id + 'dismiss'}
                     className="text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 disabled:opacity-50"
                     title="Dismiss"
                   >

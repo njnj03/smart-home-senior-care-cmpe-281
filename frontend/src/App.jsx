@@ -71,6 +71,5 @@ export default function App(){
       <Route path="/ml" element={<MachineLearningStatus/>}/>
       <Route path="*" element={<Navigate to="/" replace />}/>
     </Routes>
-    <footer className="text-center text-gray-500 py-10 text-sm">Demo UI • Dummy data + simulated realtime</footer>
   </div>)
 }

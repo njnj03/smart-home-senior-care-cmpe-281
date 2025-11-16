@@ -1,10 +1,11 @@
 
 import React from 'react'
-import { api, db } from '../services/mockApi'
+import api from '../services/api'
 import { chipByStatus } from '../utils/format'
 
 export default function IoTDeviceManager(){
   const [list,setList]=React.useState([])
+  const [houses,setHouses]=React.useState([])
   const [loading,setLoading]=React.useState(true)
   const [error,setError]=React.useState(null)
   const [showAddDialog, setShowAddDialog] = React.useState(false)
@@ -22,8 +23,12 @@ export default function IoTDeviceManager(){
     try {
       setLoading(true)
       setError(null)
-      const res = await api.getDevices()
-      setList(res.data.devices || [])
+      const [devicesRes, housesRes] = await Promise.all([
+        api.devices.list(),
+        api.houses.list()
+      ])
+      setList(devicesRes.devices || [])
+      setHouses(housesRes.houses || [])
       setLoading(false)
     } catch (err) {
       console.error('Error loading devices:', err)
@@ -40,22 +45,26 @@ export default function IoTDeviceManager(){
       return
     }
     
-    const device = {
-      id: 'dev-' + Math.floor(Math.random() * 10000),
-      name: newDevice.name,
-      houseId: newDevice.houseId,
-      room: newDevice.room || 'Unknown',
-      macAddress: newDevice.macAddress || null,
-      deviceType: newDevice.deviceType,
-      status: newDevice.status,
-      lastHeartbeat: 0,
-      errorRate: 0
+    try {
+      // TODO: Backend needs POST /devices endpoint
+      // For now, show message that this feature needs backend implementation
+      alert('Add device functionality requires backend POST /devices endpoint to be implemented')
+      
+      // When backend is ready, uncomment:
+      // await api.devices.create({
+      //   device_name: newDevice.name,
+      //   house_id: newDevice.houseId,
+      //   location: newDevice.room || 'Unknown',
+      //   device_type_id: 1, // Default type
+      //   status: newDevice.status
+      // })
+      // await loadDevices()
+      
+      setShowAddDialog(false)
+      setNewDevice({ name: '', houseId: '', room: '', macAddress: '', deviceType: 'sensor', status: 'offline' })
+    } catch (err) {
+      alert('Error adding device: ' + err.message)
     }
-    
-    db.devices.push(device)
-    await loadDevices()
-    setShowAddDialog(false)
-    setNewDevice({ name: '', houseId: '', room: '', macAddress: '', deviceType: 'sensor', status: 'offline' })
   }
 
   const handleDeleteSelected = async () => {
@@ -66,10 +75,20 @@ export default function IoTDeviceManager(){
     
     if (!confirm(`Delete ${selectedDevices.size} device(s)?`)) return
     
-    // Remove from db
-    db.devices = db.devices.filter(d => !selectedDevices.has(d.id))
-    await loadDevices()
-    setSelectedDevices(new Set())
+    try {
+      // TODO: Backend needs DELETE /devices/{id} endpoint
+      alert('Delete device functionality requires backend DELETE /devices/{id} endpoint to be implemented')
+      
+      // When backend is ready, uncomment:
+      // await Promise.all(
+      //   Array.from(selectedDevices).map(id => api.devices.delete(id))
+      // )
+      // await loadDevices()
+      
+      setSelectedDevices(new Set())
+    } catch (err) {
+      alert('Error deleting devices: ' + err.message)
+    }
   }
 
   const toggleSelection = (id) => {
@@ -114,32 +133,32 @@ export default function IoTDeviceManager(){
                 checked={selectedDevices.size === list.length && list.length > 0}
                 onChange={(e) => {
                   if (e.target.checked) {
-                    setSelectedDevices(new Set(list.map(d => d.id)))
+                    setSelectedDevices(new Set(list.map(d => d.device_id)))
                   } else {
                     setSelectedDevices(new Set())
                   }
                 }}
               />
             </th>
-            <th>ID</th><th>House</th><th>Name</th><th>Room</th><th>Status</th><th>Last Heartbeat</th>
+            <th>ID</th><th>House</th><th>Name</th><th>Location</th><th>Status</th><th>Last Heartbeat</th>
           </tr>
         </thead>
         <tbody>
           {list.map(d=>(
-            <tr key={d.id}>
+            <tr key={d.device_id}>
               <td>
                 <input 
                   type="checkbox"
-                  checked={selectedDevices.has(d.id)}
-                  onChange={() => toggleSelection(d.id)}
+                  checked={selectedDevices.has(d.device_id)}
+                  onChange={() => toggleSelection(d.device_id)}
                 />
               </td>
-              <td>{d.id}</td>
-              <td>{d.houseId}</td>
-              <td>{d.name}</td>
-              <td>{d.room}</td>
+              <td>{d.device_id}</td>
+              <td>{d.house_id}</td>
+              <td>{d.device_name}</td>
+              <td>{d.location}</td>
               <td><span className={`chip ${chipByStatus(d.status)}`}>{d.status}</span></td>
-              <td>{d.lastHeartbeat}s ago</td>
+              <td>{d.last_heartbeat ? new Date(d.last_heartbeat).toLocaleString('en-US', {timeZone: 'America/Los_Angeles'}) : 'Never'}</td>
             </tr>
           ))}
         </tbody>
@@ -169,7 +188,7 @@ export default function IoTDeviceManager(){
                 onChange={(e) => setNewDevice({...newDevice, houseId: e.target.value})}
               >
                 <option value="">Select House</option>
-                {db.houses.map(h => <option key={h.id} value={h.id}>{h.name} ({h.id})</option>)}
+                {houses.map(h => <option key={h.house_id} value={h.house_id}>{h.house_name} ({h.house_id})</option>)}
               </select>
             </div>
             <div>

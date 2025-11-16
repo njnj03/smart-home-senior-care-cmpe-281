@@ -1,6 +1,6 @@
 
 import React from 'react'
-import { api } from '../services/mockApi'
+import api from '../services/api'
 
 export default function MachineLearningStatus(){
   const [models, setModels] = React.useState([])
@@ -13,9 +13,9 @@ export default function MachineLearningStatus(){
       try {
         setLoading(true)
         setError(null)
-        const res = await api.getModels()
-        setModels(res.data.models || [])
-        setActiveModel(res.data.active_model)
+        const res = await api.models.list()
+        setModels(res.models || [])
+        setActiveModel(res.active_model)
         setLoading(false)
       } catch (err) {
         console.error('Error loading models:', err)
@@ -27,11 +27,11 @@ export default function MachineLearningStatus(){
 
   const handleActivate = async (modelId) => {
     try {
-      await api.activateModel(modelId)
+      await api.models.activate(modelId)
       // Refresh models
-      const res = await api.getModels()
-      setModels(res.data.models || [])
-      setActiveModel(res.data.active_model)
+      const res = await api.models.list()
+      setModels(res.models || [])
+      setActiveModel(res.active_model)
     } catch (err) {
       console.error('Error activating model:', err)
       setError(err.message)
@@ -47,28 +47,28 @@ export default function MachineLearningStatus(){
       {activeModel && (
         <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
           <div className="text-sm font-semibold text-green-900">Active Model</div>
-          <div className="text-sm text-green-800">{activeModel.name} (v{activeModel.version})</div>
+          <div className="text-sm text-green-800">{activeModel.model_name} (v{activeModel.version})</div>
           {activeModel.accuracy && <div className="text-sm text-green-800">Accuracy: {(activeModel.accuracy * 100).toFixed(1)}%</div>}
         </div>
       )}
       <div className="space-y-2">
         {models.map(m => (
-          <div key={m.id} className="flex items-center justify-between border rounded-lg p-3">
+          <div key={m.model_id} className="flex items-center justify-between border rounded-lg p-3">
             <div>
-              <div className="font-semibold">{m.name}</div>
-              <div className="text-sm text-gray-500">v{m.version} • Created {new Date(m.createdAt).toLocaleDateString()}</div>
+              <div className="font-semibold">{m.model_name}</div>
+              <div className="text-sm text-gray-500">v{m.version} • Created {new Date(m.created_at).toLocaleDateString('en-US', {timeZone: 'America/Los_Angeles'})}</div>
               {m.accuracy && <div className="text-sm text-gray-600">Accuracy: {(m.accuracy * 100).toFixed(1)}%</div>}
             </div>
             <button 
-              onClick={() => handleActivate(m.id)}
-              disabled={m.status === 'active'}
+              onClick={() => handleActivate(m.model_id)}
+              disabled={m.is_active}
               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                m.status === 'active'
+                m.is_active
                   ? 'bg-gray-100 text-gray-500 cursor-default' 
                   : 'bg-blue-500 text-white hover:bg-blue-600'
               }`}
             >
-              {m.status === 'active' ? 'Active' : 'Activate'}
+              {m.is_active ? 'Active' : 'Activate'}
             </button>
           </div>
         ))}

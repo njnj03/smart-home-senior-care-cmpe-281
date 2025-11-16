@@ -2,7 +2,7 @@
 const rand = (arr)=> arr[Math.floor(Math.random()*arr.length)]
 const nowISO = ()=> new Date().toISOString()
 export const db = {
-  houses:[{id:'H001',name:'House 1',lat:37.3352,lng:-121.8811},{id:'H002',name:'House 2',lat:37.7749,lng:-122.4194},{id:'H003',name:'House 3',lat:37.8044,lng:-122.2711}],
+  houses:[{id:'H002',name:'House 2',lat:37.7749,lng:-122.4194},{id:'H003',name:'House 3',lat:37.8044,lng:-122.2711}],
   devices:[
     {id:'dev-001',houseId:'H001',name:'Living Mic',room:'Living',status:'online',lastHeartbeat:12,errorRate:0},
     {id:'dev-002',houseId:'H001',name:'Kitchen Cam',room:'Kitchen',status:'degraded',lastHeartbeat:35,errorRate:5},
@@ -10,16 +10,14 @@ export const db = {
     {id:'dev-004',houseId:'H003',name:'Hall Cam',room:'Hallway',status:'online',lastHeartbeat:5,errorRate:1},
   ],
   alerts:[
-    {id:'alert-1001',houseId:'H001',type:'distress',severity:'high',status:'open',createdAt:new Date(Date.now()-18*60*1000).toISOString(),location:'Living Room',confidence:0.92},
-    {id:'alert-1002',houseId:'H002',type:'inactivity',severity:'medium',status:'acknowledged',createdAt:new Date(Date.now()-35*60*1000).toISOString(),location:'Bedroom',confidence:0.75},
-    {id:'alert-1003',houseId:'H003',type:'alarm',severity:'low',status:'resolved',createdAt:new Date(Date.now()-90*60*1000).toISOString(),location:'Garage',confidence:0.66},
+    {id:'alert-1001',houseId:'H001',type:'distress',severity:'high',status:'active',createdAt:new Date(Date.now()-18*60*1000).toISOString(),location:'Living Room',confidence:0.92},,
   ],
   models:[
     {id:'model-1',name:'YAMNet Human v1.0',version:'1.0',status:'active',accuracy:0.92,createdAt:new Date(Date.now()-30*24*60*60*1000).toISOString()},
     {id:'model-2',name:'YAMNet Human v1.1',version:'1.1',status:'inactive',accuracy:0.94,createdAt:new Date(Date.now()-15*24*60*60*1000).toISOString()},
     {id:'model-3',name:'Custom Audio Classifier',version:'2.0',status:'inactive',accuracy:0.89,createdAt:new Date(Date.now()-7*24*60*60*1000).toISOString()},
   ],
-  metrics(){ const activeAlerts=this.alerts.filter(a=>a.status==='open').length; return{
+  metrics(){ const activeAlerts=this.alerts.filter(a=>a.status==='active').length; return{
     activeHouses:new Set(this.alerts.map(a=>a.houseId)).size, totalDevices:this.devices.length,
     onlineDevices:this.devices.filter(d=>d.status==='online').length, activeAlerts,
     systemHealth:{apiLatency:40+Math.round(Math.random()*30), queueDepth:Math.round(Math.random()*10)} } }
@@ -40,4 +38,4 @@ export const api={
 const listeners = new Set()
 export const ws = { subscribe(cb){ listeners.add(cb); return ()=>listeners.delete(cb) }, broadcast(evt){ for(const cb of listeners) cb(evt) } }
 const types=['distress','inactivity','alarm','fall']; const severities=['high','medium','low']
-setInterval(()=>{ if(Math.random()<0.45){ const house=rand(db.houses); const alert={id:'alert-'+Math.floor(Math.random()*99999),houseId:house.id,type:rand(types),severity:rand(severities),status:'open',createdAt:nowISO(),location:rand(['Living','Kitchen','Bedroom','Garage']),confidence:Math.round((0.6+Math.random()*0.4)*100)/100}; db.alerts.unshift(alert); ws.broadcast({type:'alert_created',payload:alert}); } },6000)
+setInterval(()=>{ if(Math.random()<0.45){ const house=rand(db.houses); const alert={id:'alert-'+Math.floor(Math.random()*99999),houseId:house.id,type:rand(types),severity:rand(severities),status:'active',createdAt:nowISO(),location:rand(['Living','Kitchen','Bedroom','Garage']),confidence:Math.round((0.6+Math.random()*0.4)*100)/100}; db.alerts.unshift(alert); ws.broadcast({type:'alert_created',payload:alert}); } },6000)

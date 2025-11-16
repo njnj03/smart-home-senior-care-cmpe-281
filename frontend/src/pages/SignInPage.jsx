@@ -55,8 +55,5 @@ export default function SignInPage({ onSignIn }){
           {loading ? 'Signing In...' : 'Sign In'}
         </button>
       </form>
-      <div className="mt-4 text-xs text-gray-500 text-center">
-        Demo mode - any email/password combination works
-      </div>
     </div></div>)
 }

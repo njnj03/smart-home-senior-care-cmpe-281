@@ -1,7 +1,7 @@
 
 import React from 'react'
 export default function SettingsPage(){
-  const [profile,setProfile]=React.useState({ first:'Alex', last:'Lee', phone:'+1-555-123-4567', notify:{emergency:true, indoor:true, outdoor:false} })
+  const [profile,setProfile]=React.useState({ first:'Alex', last:'Lee', phone:'+1-555-123-4567', role:'Home Owner', notify:{emergency:true, indoor:true, outdoor:false} })
   const [saved,setSaved]=React.useState(false)
   const [saving,setSaving]=React.useState(false)
   
@@ -21,10 +21,15 @@ export default function SettingsPage(){
   return (<div className="max-w-4xl mx-auto p-4 space-y-4">
     <div className="card"><h3 className="font-bold mb-2">Profile</h3>
       <div className="grid md:grid-cols-3 gap-3">
-        <input className="border rounded-xl px-3 py-2" value={profile.first} onChange={e=>setProfile({...profile, first:e.target.value})} />
-        <input className="border rounded-xl px-3 py-2" value={profile.last} onChange={e=>setProfile({...profile, last:e.target.value})} />
-        <input className="border rounded-xl px-3 py-2" value={profile.phone} onChange={e=>setProfile({...profile, phone:e.target.value})} />
-      </div></div>
+        <input className="border rounded-xl px-3 py-2" placeholder="First Name" value={profile.first} onChange={e=>setProfile({...profile, first:e.target.value})} />
+        <input className="border rounded-xl px-3 py-2" placeholder="Last Name" value={profile.last} onChange={e=>setProfile({...profile, last:e.target.value})} />
+        <input className="border rounded-xl px-3 py-2" placeholder="Phone Number" value={profile.phone} onChange={e=>setProfile({...profile, phone:e.target.value})} />
+      </div>
+      <div className="mt-3">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+        <input className="border rounded-xl px-3 py-2 w-full bg-gray-50 cursor-not-allowed" value={profile.role} disabled />
+      </div>
+    </div>
     <div className="card"><h3 className="font-bold mb-2">Notification Preferences</h3>
       <div className="flex flex-col gap-2">
         <label className="flex items-center gap-2"><input type="checkbox" checked={profile.notify.emergency} onChange={()=>toggle('emergency')}/> Emergency</label>
