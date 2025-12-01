@@ -72,10 +72,10 @@ async def get_device(
 async def create_device(
     device_data: DeviceCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_iot_team),
 ):
     """
-    Create a new device.
+    Create a new device (IoT Team or Admin only).
     """
     # Validate house exists
     house_query = select(House).where(House.house_id == device_data.house_id)
