@@ -15,8 +15,11 @@ const api = {
     // Get auth token from localStorage
     const token = localStorage.getItem('authToken');
     
+    // Check if body is FormData - if so, don't set Content-Type (browser will set it with boundary)
+    const isFormData = options.body instanceof FormData;
+    
     const defaultHeaders = {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     };
 
@@ -344,12 +347,22 @@ const api = {
     },
 
     /**
-     * Create a new model record
+     * Create a new model record with file upload
      */
-    async create(modelData) {
+    async create(modelFile, modelData) {
+      const formData = new FormData();
+      formData.append('model_file', modelFile);
+      formData.append('model_name', modelData.model_name);
+      if (modelData.version) formData.append('version', modelData.version);
+      if (modelData.description) formData.append('description', modelData.description);
+      if (modelData.model_type) formData.append('model_type', modelData.model_type);
+      if (modelData.accuracy !== null && modelData.accuracy !== undefined) {
+        formData.append('accuracy', modelData.accuracy.toString());
+      }
+      
       return api.request('/api/v1/models', {
         method: 'POST',
-        body: JSON.stringify(modelData),
+        body: formData,
       });
     },
 

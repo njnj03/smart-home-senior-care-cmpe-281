@@ -12,6 +12,7 @@ from app.schemas.event import EventResponse
 from app.services.inference import inference_service
 from app.services.policy import policy_engine
 from app.services.storage import storage_service
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,14 @@ async def ingest_event(
         
         # Run inference
         try:
+            logger.info(f"[Event {event.event_id}] Running inference on audio file: {file_path}")
             inference_result = await inference_service.predict(file_path)
+            
+            # Log inference response
+            logger.info(
+                f"[Event {event.event_id}] INFERENCE RESULT: "
+                f"label='{inference_result.label}', score={inference_result.score:.4f}"
+            )
             
             # Update raw_data with inference results
             if event.raw_data:
@@ -104,6 +112,7 @@ async def ingest_event(
                 }
             
             # Evaluate policy and create alert if needed
+            logger.info(f"[Event {event.event_id}] Evaluating policy engine...")
             alert_id = await policy_engine.evaluate(
                 db=db,
                 event_id=event.event_id,
@@ -113,11 +122,24 @@ async def ingest_event(
                 event_timestamp=event_timestamp,
             )
             
+            # Log alert creation status
+            if alert_id:
+                logger.info(
+                    f"[Event {event.event_id}] ✅ ALERT CREATED: alert_id={alert_id}, "
+                    f"label='{inference_result.label}', score={inference_result.score:.4f}"
+                )
+            else:
+                logger.info(
+                    f"[Event {event.event_id}] ❌ NO ALERT CREATED: "
+                    f"label='{inference_result.label}', score={inference_result.score:.4f} "
+                    f"(threshold={settings.policy_threshold})"
+                )
+            
             # Mark event as processed
             event.is_processed = True
             
         except Exception as e:
-            logger.error(f"Inference/policy processing failed for event {event.event_id}: {e}")
+            logger.error(f"[Event {event.event_id}] Inference/policy processing failed: {e}", exc_info=True)
             # Don't fail the entire request, but leave is_processed as False
         
         await db.commit()

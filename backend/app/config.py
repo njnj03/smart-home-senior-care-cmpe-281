@@ -20,7 +20,11 @@ class Settings(BaseSettings):
     storage_path: str = "./storage/audio"
     
     # Policy Engine
-    policy_threshold: float = 0.7  # Default threshold for alert creation
+    policy_threshold: float = 0.5  # Default threshold for alert creation (fallback for unknown alert types)
+    # Note: Per-alert-type thresholds are defined in PolicyEngine.alert_type_thresholds
+    # Urgent types (distress, medical_emergency, intrusion) use 0.4
+    # Medium types (fall, agitation, alarm) use 0.5
+    # Lower priority (inactivity) uses 0.6
     policy_aggregation_window_seconds: int = 60  # Window for aggregating events
     policy_min_events_for_alert: int = 1  # Minimum events in window to trigger alert
     

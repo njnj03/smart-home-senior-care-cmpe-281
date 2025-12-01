@@ -1,7 +1,8 @@
 """ML Models router for model management."""
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from pathlib import Path
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from app.database import get_db
@@ -120,41 +121,98 @@ async def get_model(
 
 @router.post("", response_model=MLModelResponse, status_code=201)
 async def create_model(
-    model_data: MLModelCreate,
+    model_file: UploadFile = File(...),
+    model_name: str = Form(...),
+    version: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    model_type: Optional[str] = Form(None),
+    accuracy: Optional[float] = Form(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
     """
-    Register a new ML model in the database.
-    Note: The model file should already exist in the filesystem.
+    Upload and register a new ML model.
+    The model file will be saved to the models/ folder.
     """
     # Check if model name already exists
-    existing_query = select(MLModel).where(MLModel.model_name == model_data.model_name)
+    existing_query = select(MLModel).where(MLModel.model_name == model_name)
     existing_result = await db.execute(existing_query)
     existing = existing_result.scalar_one_or_none()
     
     if existing:
         raise HTTPException(
             status_code=400,
-            detail=f"Model with name '{model_data.model_name}' already exists"
+            detail=f"Model with name '{model_name}' already exists"
         )
+    
+    # Ensure models directory exists
+    backend_root = Path(__file__).parent.parent.parent
+    models_dir = backend_root / "models"
+    models_dir.mkdir(exist_ok=True)
+    
+    # Generate safe filename from model name and original filename
+    # Use original filename extension if available
+    original_filename = model_file.filename or "model.keras"
+    file_extension = Path(original_filename).suffix or ".keras"
+    
+    # Create a safe filename from model_name
+    safe_model_name = "".join(c for c in model_name if c.isalnum() or c in (' ', '-', '_')).strip()
+    safe_model_name = safe_model_name.replace(' ', '_')
+    
+    # If version is provided, include it in filename
+    if version:
+        safe_version = "".join(c for c in version if c.isalnum() or c in ('.', '-', '_'))
+        filename = f"{safe_model_name}_{safe_version}{file_extension}"
+    else:
+        filename = f"{safe_model_name}{file_extension}"
+    
+    # Ensure filename is unique (add number if needed)
+    file_path = models_dir / filename
+    counter = 1
+    while file_path.exists():
+        name_part = file_path.stem
+        file_path = models_dir / f"{name_part}_{counter}{file_extension}"
+        counter += 1
+    
+    # Save uploaded file
+    try:
+        contents = await model_file.read()
+        with open(file_path, "wb") as f:
+            f.write(contents)
+        logger.info(f"Saved model file to: {file_path}")
+    except Exception as e:
+        logger.error(f"Failed to save model file: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to save model file: {str(e)}"
+        )
+    
+    # Store relative path from backend root
+    relative_path = f"models/{file_path.name}"
+    
+    # Convert accuracy to Decimal if provided
+    from decimal import Decimal
+    accuracy_decimal = None
+    if accuracy is not None:
+        accuracy_decimal = Decimal(str(accuracy))
     
     # Create new model record
     model = MLModel(
-        model_name=model_data.model_name,
-        version=model_data.version,
-        file_path=model_data.file_path,
-        description=model_data.description,
-        model_type=model_data.model_type,
-        accuracy=model_data.accuracy,
+        model_name=model_name,
+        version=version,
+        file_path=relative_path,
+        description=description,
+        model_type=model_type,
+        accuracy=accuracy_decimal,
         is_active=False,  # New models are not active by default
+        created_by_user_id=current_user.user_id,
     )
     
     db.add(model)
     await db.commit()
     await db.refresh(model)
     
-    logger.info(f"Created model record: {model.model_name} (ID: {model.model_id})")
+    logger.info(f"Created model record: {model.model_name} (ID: {model.model_id}) at {relative_path}")
     
     return MLModelResponse.model_validate(model)
 

@@ -1,107 +1,124 @@
 """Inference service for ML model predictions."""
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, List
 import numpy as np
 import librosa
 import soundfile as sf
-from tensorflow import keras
+import tensorflow as tf
+import csv
+import io
 from app.schemas.inference import InferenceResponse
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# YAMNet typically expects 16kHz audio
+# YAMNet expects 16kHz mono audio
 SAMPLE_RATE = 16000
-# YAMNet expects ~1 second of audio (15600 samples at 16kHz)
-AUDIO_LENGTH = 15600
 
 
 class InferenceService:
     """
-    Inference service for audio analysis using YAMNet-based model.
+    Inference service for audio analysis using YAMNet from TensorFlow Hub.
     
-    Loads a Keras model and performs inference on audio files.
-    Supports loading from database (active model) or filesystem path.
+    YAMNet is a pre-trained audio event classifier that predicts 521 audio events
+    from the AudioSet ontology.
     """
     
     def __init__(self):
         """Initialize the inference service."""
         self.model = None
-        self.model_path = None
-        self.current_model_id = None
-        # Will be loaded on startup via load_active_model_from_db()
+        self.class_names = []
+        self.model_loaded = False
+        self.current_model_path = None
     
-    def _load_model_from_path(self, model_path: str) -> bool:
-        """
-        Load a Keras model from file path.
-        
-        Args:
-            model_path: Path to the model file
+    def _load_yamnet_model(self):
+        """Load YAMNet model from local models/yamnet-tensorflow2-yamnet-v1/ directory."""
+        try:
+            if self.model is not None:
+                logger.info("YAMNet model already loaded")
+                return True
             
-        Returns:
-            True if loaded successfully, False otherwise
-        """
-        # Model loading temporarily disabled - using hardcoded responses
-        # Log as if model is loaded successfully
-        logger.info(f"Model loaded successfully from {model_path}")
-        self.model = None  # Not actually loaded, but we'll simulate it
-        self.model_path = str(Path(model_path).absolute())
-        return True  # Return True to indicate "success"
-        
-        # COMMENTED OUT - TensorFlow compatibility issues
-        # try:
-        #     model_file = Path(model_path)
-        #     if not model_file.exists():
-        #         logger.warning(f"Model file not found at {model_path}")
-        #         return False
-        #     
-        #     logger.info(f"Loading model from {model_path}")
-        #     
-        #     # Handle compatibility with older Keras models that use batch_shape
-        #     import tensorflow as tf
-        #     
-        #     # Patch InputLayer.from_config to convert batch_shape to input_shape
-        #     # This is needed for models saved with older Keras/TensorFlow versions
-        #     original_input_from_config = tf.keras.layers.InputLayer.from_config
-        #     
-        #     @classmethod
-        #     def patched_input_from_config(cls, config):
-        #         # Convert batch_shape to input_shape if present (old Keras format)
-        #         if 'batch_shape' in config:
-        #             batch_shape = config.pop('batch_shape')
-        #             if batch_shape and len(batch_shape) > 1:
-        #                 # Convert [None, 1024] -> [1024]
-        #                 config['input_shape'] = batch_shape[1:]
-        #         return original_input_from_config(config)
-        #     
-        #     # Temporarily patch the method
-        #     tf.keras.layers.InputLayer.from_config = patched_input_from_config
-        #     
-        #     try:
-        #         # Try loading with compile=False
-        #         self.model = keras.models.load_model(str(model_file), compile=False)
-        #     except Exception as e:
-        #         logger.error(f"Failed to load model: {e}")
-        #         raise
-        #     finally:
-        #         # Restore original method
-        #         tf.keras.layers.InputLayer.from_config = original_input_from_config
-        #     
-        #     self.model_path = str(model_file.absolute())
-        #     logger.info("Model loaded successfully")
-        #     return True
-        # except Exception as e:
-        #     logger.error(f"Failed to load model: {e}", exc_info=True)
-        #     self.model = None
-        #     return False
+            # Get backend root directory
+            backend_root = Path(__file__).parent.parent.parent
+            yamnet_path = backend_root / "models" / "yamnet-tensorflow2-yamnet-v1"
+            
+            if not yamnet_path.exists():
+                logger.error(f"YAMNet model directory not found: {yamnet_path}")
+                raise FileNotFoundError(f"YAMNet model directory not found: {yamnet_path}")
+            
+            saved_model_pb = yamnet_path / "saved_model.pb"
+            if not saved_model_pb.exists():
+                logger.error(f"saved_model.pb not found in: {yamnet_path}")
+                raise FileNotFoundError(f"saved_model.pb not found in: {yamnet_path}")
+            
+            logger.info(f"Loading YAMNet model from local directory: {yamnet_path}")
+            
+            # Load SavedModel format
+            self.model = tf.saved_model.load(str(yamnet_path))
+            
+            # Load class names from the model
+            # YAMNet SavedModel should have class_map_path attribute
+            if hasattr(self.model, 'class_map_path'):
+                try:
+                    class_map_path = self.model.class_map_path().numpy()
+                    class_map_csv_text = tf.io.read_file(class_map_path).numpy().decode('utf-8')
+                    self.class_names = self._class_names_from_csv(class_map_csv_text)
+                    logger.info("Loaded class names from model's class_map_path")
+                except Exception as e:
+                    logger.warning(f"Failed to load class names from class_map_path: {e}")
+                    # Try loading from assets folder
+                    self._try_load_class_names_from_assets(yamnet_path)
+            else:
+                # Try loading from assets folder
+                logger.info("Model doesn't have class_map_path. Trying to load from assets folder.")
+                self._try_load_class_names_from_assets(yamnet_path)
+            
+            self.model_loaded = True
+            self.current_model_path = str(yamnet_path)
+            logger.info(f"YAMNet model loaded successfully from {yamnet_path}. {len(self.class_names)} classes available.")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to load YAMNet model: {e}", exc_info=True)
+            self.model = None
+            self.model_loaded = False
+            return False
+    
+    def _class_names_from_csv(self, class_map_csv_text: str) -> List[str]:
+        """Parse class names from CSV text."""
+        class_map_csv = io.StringIO(class_map_csv_text)
+        class_names = [display_name for (class_index, mid, display_name) in csv.reader(class_map_csv)]
+        class_names = class_names[1:]  # Skip CSV header
+        return class_names
+    
+    def _try_load_class_names_from_assets(self, yamnet_path: Path):
+        """Try to load class names from assets/yamnet_class_map.csv file."""
+        try:
+            class_map_file = yamnet_path / "assets" / "yamnet_class_map.csv"
+            if class_map_file.exists():
+                with open(class_map_file, 'r', encoding='utf-8') as f:
+                    class_map_csv_text = f.read()
+                self.class_names = self._class_names_from_csv(class_map_csv_text)
+                logger.info(f"Loaded class names from {class_map_file}")
+            else:
+                logger.warning(f"Class map file not found at {class_map_file}. Using default classes.")
+                self.class_names = self._get_default_yamnet_classes()
+        except Exception as e:
+            logger.warning(f"Failed to load class names from assets folder: {e}. Using default classes.")
+            self.class_names = self._get_default_yamnet_classes()
+    
+    def _get_default_yamnet_classes(self) -> List[str]:
+        """Get default YAMNet class names (521 classes) as fallback."""
+        logger.warning("Using placeholder class names. Model should include class names.")
+        return [f"class_{i}" for i in range(521)]  # YAMNet has 521 classes
     
     async def load_active_model_from_db(self, db_session):
         """
-        Load the active model from the database.
+        Load YAMNet model from local directory (always uses yamnet-tensorflow2-yamnet-v1).
         
         Args:
-            db_session: Database session
+            db_session: Database session (not used, but kept for compatibility)
         """
         try:
             from app.models.ml_model import MLModel
@@ -112,94 +129,53 @@ class InferenceService:
             active_model = result.scalar_one_or_none()
             
             if active_model:
-                # Log that we loaded model metadata from database first
-                logger.info(f"Loaded active model from database: {active_model.model_name} (ID: {active_model.model_id})")
-                
-                # Build full path from backend root
-                backend_root = Path(__file__).parent.parent.parent
-                model_file_path = backend_root / active_model.file_path
-                logger.info(f"Model file path: {model_file_path}")
-                
-                # Store model metadata
-                self.current_model_id = active_model.model_id
-                self.model_path = str(model_file_path)
-                
-                # Load model (or simulate loading) - this will log "Model loaded successfully from..."
-                self._load_model_from_path(str(model_file_path))
-            else:
-                # Fallback to default model if no active model in DB
-                backend_root = Path(__file__).parent.parent.parent
-                # Try models/ directory first, then root
-                default_paths = [
-                    backend_root / "models" / "my_yamnet_human_model.keras",
-                    backend_root / "my_yamnet_human_model.keras",
-                ]
-                for default_path in default_paths:
-                    if default_path.exists():
-                        logger.info(f"No active model in database, loading default model from {default_path}")
-                        self._load_model_from_path(str(default_path))
-                        break
-                else:
-                    logger.warning("No active model in database and no default model found")
+                logger.info(f"Active model in database: {active_model.model_name} (ID: {active_model.model_id})")
+            
+            # Always load YAMNet from local directory regardless of database
+            logger.info("Loading YAMNet from local models/yamnet-tensorflow2-yamnet-v1/ directory")
+            self._load_yamnet_model()
+            
         except Exception as e:
-            logger.error(f"Error loading active model from database: {e}", exc_info=True)
-            # Try fallback - check models/ folder first, then root
-            backend_root = Path(__file__).parent.parent.parent
-            default_paths = [
-                backend_root / "models" / "my_yamnet_human_model.keras",
-                backend_root / "my_yamnet_human_model.keras",
-            ]
-            for default_path in default_paths:
-                if default_path.exists():
-                    logger.info(f"Loading fallback model from {default_path}")
-                    self._load_model_from_path(str(default_path))
-                    break
+            logger.error(f"Error in load_active_model_from_db: {e}", exc_info=True)
+            # Still try to load YAMNet as fallback
+            self._load_yamnet_model()
     
     def load_model(self, model_path: Optional[str] = None):
         """
-        Load or reload the model from a file path.
-        Used for hot-reloading when model is switched via API.
+        Load or reload the YAMNet model from local directory.
         
         Args:
-            model_path: Path to the model file (optional, uses current model_path if not provided)
+            model_path: Ignored - always loads from models/yamnet-tensorflow2-yamnet-v1/
         """
-        if model_path:
-            self.model_path = model_path
-        
-        if self.model_path:
-            self._load_model_from_path(self.model_path)
-        else:
-            logger.warning("No model path provided for loading")
+        # Always load from local YAMNet directory, ignore model_path
+        logger.info("Reloading YAMNet from local directory (ignoring provided path)")
+        self._load_yamnet_model()
     
     def _preprocess_audio(self, audio_file_path: str) -> np.ndarray:
         """
         Preprocess audio file for YAMNet model.
         
+        YAMNet expects:
+        - 1-D float32 array
+        - Mono 16kHz samples
+        - Range [-1.0, +1.0]
+        
         Args:
             audio_file_path: Path to audio file
             
         Returns:
-            Preprocessed audio array (16kHz, mono, normalized)
+            Preprocessed audio array (16kHz, mono, normalized to [-1, 1])
         """
         try:
-            # Load audio file
+            # Load audio file and resample to 16kHz, convert to mono
             audio, sr = librosa.load(audio_file_path, sr=SAMPLE_RATE, mono=True)
             
-            # Normalize audio
-            audio = librosa.util.normalize(audio)
+            # Ensure audio is in range [-1.0, +1.0]
+            # librosa.load already normalizes, but ensure it's float32
+            audio = audio.astype(np.float32)
             
-            # Pad or truncate to expected length
-            if len(audio) > AUDIO_LENGTH:
-                # Take the first AUDIO_LENGTH samples
-                audio = audio[:AUDIO_LENGTH]
-            elif len(audio) < AUDIO_LENGTH:
-                # Pad with zeros
-                audio = np.pad(audio, (0, AUDIO_LENGTH - len(audio)), mode='constant')
-            
-            # Ensure shape is correct for model input
-            # YAMNet typically expects (batch, samples) or (samples,)
-            # Reshape to add batch dimension if needed
-            audio = audio.reshape(1, -1) if len(audio.shape) == 1 else audio
+            # Clip to ensure range
+            audio = np.clip(audio, -1.0, 1.0)
             
             return audio
             
@@ -207,57 +183,173 @@ class InferenceService:
             logger.error(f"Error preprocessing audio: {e}", exc_info=True)
             raise
     
-    def _postprocess_prediction(self, prediction: np.ndarray) -> tuple[str, float]:
+    def _map_yamnet_to_care_labels(self, scores: np.ndarray, class_names: List[str]) -> tuple[str, float]:
         """
-        Postprocess model prediction to extract label and score.
+        Map YAMNet's 521 AudioSet classes to senior care labels.
         
         Args:
-            prediction: Model output array
+            scores: YAMNet scores array (N, 521) - mean aggregated
+            class_names: List of 521 class names
             
         Returns:
             Tuple of (label, confidence_score)
         """
-        # Handle different output shapes
-        if isinstance(prediction, np.ndarray):
-            # If prediction is multi-dimensional, flatten it
-            if prediction.ndim > 1:
-                prediction = prediction.flatten()
+        # Mean aggregate scores across frames
+        mean_scores = scores.mean(axis=0) if scores.ndim > 1 else scores
+        
+        # Find top predictions - check more classes for better coverage
+        top_indices = np.argsort(mean_scores)[::-1][:20]  # Top 20 for better keyword matching
+        
+        # Map YAMNet classes to care labels
+        # Expanded keyword lists for better detection
+        distress_keywords = [
+            'scream', 'crying', 'sobbing', 'whimper', 'groan', 'moan', 'groaning',
+            'pain', 'distress', 'emergency', 'alarm', 'siren', 'smoke alarm',
+            'fire alarm', 'car alarm', 'burglar alarm', 'help', 'yelp', 'shriek'
+        ]
+        
+        inactivity_keywords = [
+            'silence', 'quiet', 'muffled', 'muted', 'hush', 'stillness'
+        ]
+        
+        normal_keywords = [
+            'speech', 'conversation', 'talking', 'human voice', 'music',
+            'television', 'radio', 'footsteps', 'door', 'knock'
+        ]
+        
+        fall_keywords = [
+            'thump', 'thud', 'crash', 'breaking', 'glass breaking', 'glass',
+            'impact', 'explosion', 'bang', 'collision', 'drop', 'falling'
+        ]
+        
+        # New alert type keywords
+        medical_emergency_keywords = [
+            'cough', 'wheezing', 'gasping', 'choking', 'labored breathing', 'breathing',
+            'medical', 'respiratory', 'asthma', 'panting', 'gasp', 'suffocation',
+            'snoring', 'apnea', 'dyspnea'
+        ]
+        
+        intrusion_keywords = [
+            'breaking', 'glass breaking', 'door slamming', 'forced entry', 'intrusion',
+            'breaking glass', 'window breaking', 'door', 'doorbell', 'knock', 'banging',
+            'forced', 'break-in', 'burglary', 'unauthorized'
+        ]
+        
+        agitation_keywords = [
+            'shouting', 'arguing', 'aggressive speech', 'angry', 'yelling', 'screaming',
+            'agitation', 'aggressive', 'hostile', 'confrontation', 'dispute', 'quarrel'
+        ]
+        
+        # Minimum score threshold for keyword matches to be considered valid
+        MIN_KEYWORD_SCORE = 0.05  # Very low threshold - any match above this is valid
+        
+        # Check all top predictions for relevant classes
+        best_match_score = 0.0
+        detected_label = "normal"
+        matched_keywords = []
+        matched_class = None
+        
+        # Priority order: distress > medical_emergency > intrusion > fall > agitation > inactivity
+        for idx in top_indices:
+            class_name = class_names[idx].lower()
+            score = float(mean_scores[idx])
             
-            # Get the maximum probability/score
-            max_idx = np.argmax(prediction)
-            max_score = float(prediction[max_idx])
+            # Check for distress indicators (highest priority)
+            matched_distress = [kw for kw in distress_keywords if kw in class_name]
+            if matched_distress and score >= MIN_KEYWORD_SCORE:
+                if score > best_match_score:
+                    best_match_score = score
+                    detected_label = "distress"
+                    matched_keywords = matched_distress
+                    matched_class = class_names[idx]
+                    logger.info(f"Matched distress keyword(s): {matched_distress} in class '{class_names[idx]}' (score: {score:.4f})")
             
-            # Map index to label (adjust based on your model's output classes)
-            # Common YAMNet-based human detection labels:
-            label_map = {
-                0: "normal",
-                1: "distress",
-                2: "inactivity",
-                3: "alarm",
-                4: "fall",
-            }
+            # Check for medical emergency (second priority - can override fall/intrusion/agitation)
+            matched_medical = [kw for kw in medical_emergency_keywords if kw in class_name]
+            if matched_medical and score >= MIN_KEYWORD_SCORE:
+                # Medical emergency can override lower priority labels
+                if score > best_match_score * 0.8 or (detected_label not in ["distress"] and score > best_match_score):
+                    best_match_score = max(best_match_score, score)
+                    if detected_label != "distress":  # Don't override distress
+                        detected_label = "medical_emergency"
+                        matched_keywords = matched_medical
+                        matched_class = class_names[idx]
+                        logger.info(f"Matched medical_emergency keyword(s): {matched_medical} in class '{class_names[idx]}' (score: {score:.4f})")
             
-            # If model has more outputs than our map, use generic labels
-            if max_idx < len(label_map):
-                label = label_map[max_idx]
-            else:
-                # Fallback: use score to determine label
-                if max_score > 0.7:
-                    label = "distress"
-                elif max_score > 0.5:
-                    label = "inactivity"
-                else:
-                    label = "normal"
+            # Check for intrusion (third priority)
+            matched_intrusion = [kw for kw in intrusion_keywords if kw in class_name]
+            if matched_intrusion and score >= MIN_KEYWORD_SCORE:
+                # Intrusion can override fall/agitation/inactivity
+                if score > best_match_score * 0.7 or (detected_label not in ["distress", "medical_emergency"] and score > best_match_score):
+                    best_match_score = max(best_match_score, score)
+                    if detected_label not in ["distress", "medical_emergency"]:
+                        detected_label = "intrusion"
+                        matched_keywords = matched_intrusion
+                        matched_class = class_names[idx]
+                        logger.info(f"Matched intrusion keyword(s): {matched_intrusion} in class '{class_names[idx]}' (score: {score:.4f})")
             
-            return label, max_score
-        else:
-            # Fallback for unexpected output format
-            logger.warning(f"Unexpected prediction format: {type(prediction)}")
-            return "normal", 0.5
+            # Check for fall indicators (fourth priority)
+            matched_fall = [kw for kw in fall_keywords if kw in class_name]
+            if matched_fall and score >= MIN_KEYWORD_SCORE:
+                # Falls can override agitation/inactivity
+                if score > best_match_score * 0.7 or (detected_label not in ["distress", "medical_emergency", "intrusion"] and score > best_match_score):
+                    best_match_score = max(best_match_score, score)
+                    if detected_label not in ["distress", "medical_emergency", "intrusion"]:
+                        detected_label = "fall"
+                        matched_keywords = matched_fall
+                        matched_class = class_names[idx]
+                        logger.info(f"Matched fall keyword(s): {matched_fall} in class '{class_names[idx]}' (score: {score:.4f})")
+            
+            # Check for agitation (fifth priority)
+            matched_agitation = [kw for kw in agitation_keywords if kw in class_name]
+            if matched_agitation and score >= MIN_KEYWORD_SCORE:
+                # Agitation can override inactivity
+                if score > best_match_score * 0.7 or (detected_label not in ["distress", "medical_emergency", "intrusion", "fall"] and score > best_match_score):
+                    best_match_score = max(best_match_score, score)
+                    if detected_label not in ["distress", "medical_emergency", "intrusion", "fall"]:
+                        detected_label = "agitation"
+                        matched_keywords = matched_agitation
+                        matched_class = class_names[idx]
+                        logger.info(f"Matched agitation keyword(s): {matched_agitation} in class '{class_names[idx]}' (score: {score:.4f})")
+            
+            # Check for inactivity (lowest priority - only if no other labels detected)
+            matched_inactivity = [kw for kw in inactivity_keywords if kw in class_name]
+            if matched_inactivity and score >= MIN_KEYWORD_SCORE:
+                # Inactivity needs higher score threshold (0.4) and no other labels detected
+                if score >= 0.4 and detected_label == "normal":
+                    if score > best_match_score:
+                        best_match_score = score
+                        detected_label = "inactivity"
+                        matched_keywords = matched_inactivity
+                        matched_class = class_names[idx]
+                        logger.info(f"Matched inactivity keyword(s): {matched_inactivity} in class '{class_names[idx]}' (score: {score:.4f})")
+        
+        # If we found a keyword match, use it (even if score is low)
+        if detected_label != "normal" and best_match_score >= MIN_KEYWORD_SCORE:
+            # Ensure minimum score for the final result (boost very low scores slightly)
+            final_score = max(best_match_score, 0.3)  # At least 0.3 for any keyword match
+            logger.info(
+                f"Mapped to care label '{detected_label}' based on keywords: {matched_keywords} "
+                f"in class '{matched_class}' (original score: {best_match_score:.4f}, final score: {final_score:.4f})"
+            )
+            return detected_label, final_score
+        
+        # If no specific care label detected, use top score with generic label
+        top_idx = np.argmax(mean_scores)
+        top_score = float(mean_scores[top_idx])
+        top_class = class_names[top_idx]
+        logger.info(
+            f"No care label detected (distress/medical_emergency/intrusion/fall/agitation/inactivity). "
+            f"Top YAMNet class: '{top_class}' (score: {top_score:.4f}). Mapping to 'normal'."
+        )
+        detected_label = "normal"
+        top_score = 0.5  # Default confidence for normal
+        
+        return detected_label, top_score
     
     async def predict(self, audio_file_path: str) -> InferenceResponse:
         """
-        Predict on an audio file using the loaded model.
+        Predict on an audio file using YAMNet.
         
         Args:
             audio_file_path: Path to the audio file
@@ -265,70 +357,61 @@ class InferenceService:
         Returns:
             InferenceResponse with label and score
         """
-        logger.info(f"Running inference on {audio_file_path}")
+        logger.info(f"Running YAMNet inference on {audio_file_path}")
         
-        # Model prediction temporarily using simulated response
-        # Returns response that will trigger alerts for testing
-        try:
-            # Simulate model inference
-            # In production, this would run: prediction = self.model.predict(audio, verbose=0)
-            logger.info("Inference result: distress (score: 0.8500)")
-            
-            return InferenceResponse(
-                label="distress",
-                score=0.85
-            )
-        except Exception as e:
-            logger.error(f"Error during inference: {e}", exc_info=True)
+        # Ensure model is loaded
+        if not self.model_loaded:
+            if not self._load_yamnet_model():
+                logger.error("YAMNet model not available, returning default prediction")
+                return InferenceResponse(
+                    label="normal",
+                    score=0.5
+                )
+        
+        # Check if file exists
+        if not Path(audio_file_path).exists():
+            logger.warning(f"Audio file not found: {audio_file_path}")
             return InferenceResponse(
                 label="normal",
                 score=0.5
             )
         
-        # COMMENTED OUT - TensorFlow compatibility issues
-        # # Check if file exists
-        # if not Path(audio_file_path).exists():
-        #     logger.warning(f"Audio file not found: {audio_file_path}, using dummy prediction")
-        #     return InferenceResponse(
-        #         label="distress",
-        #         score=0.85
-        #     )
-        # 
-        # # If model not loaded, use dummy prediction
-        # if self.model is None:
-        #     logger.warning("Model not loaded, using dummy prediction")
-        #     file_size = Path(audio_file_path).stat().st_size
-        #     if file_size > 100000:
-        #         return InferenceResponse(label="distress", score=0.82)
-        #     elif file_size > 50000:
-        #         return InferenceResponse(label="inactivity", score=0.75)
-        #     else:
-        #         return InferenceResponse(label="normal", score=0.35)
-        # 
-        # try:
-        #     # Preprocess audio
-        #     audio = self._preprocess_audio(audio_file_path)
-        #     
-        #     # Run inference
-        #     prediction = self.model.predict(audio, verbose=0)
-        #     
-        #     # Postprocess to get label and score
-        #     label, score = self._postprocess_prediction(prediction)
-        #     
-        #     logger.info(f"Inference result: {label} (score: {score:.4f})")
-        #     
-        #     return InferenceResponse(
-        #         label=label,
-        #         score=float(score)
-        #     )
-        #     
-        # except Exception as e:
-        #     logger.error(f"Error during inference: {e}", exc_info=True)
-        #     # Fallback to dummy prediction on error
-        #     return InferenceResponse(
-        #         label="normal",
-        #         score=0.5
-        #     )
+        try:
+            # Preprocess audio
+            waveform = self._preprocess_audio(audio_file_path)
+            
+            # Run YAMNet inference
+            # Returns: (scores, embeddings, log_mel_spectrogram)
+            scores, embeddings, log_mel_spectrogram = self.model(waveform)
+            
+            # Verify output shapes
+            logger.debug(f"YAMNet output shapes - scores: {scores.shape}, embeddings: {embeddings.shape}, spectrogram: {log_mel_spectrogram.shape}")
+            
+            # Log top YAMNet predictions for debugging
+            scores_np = scores.numpy()
+            mean_scores = scores_np.mean(axis=0) if scores_np.ndim > 1 else scores_np
+            top_indices = np.argsort(mean_scores)[::-1][:5]  # Top 5
+            logger.info(f"YAMNet top 5 predictions:")
+            for idx in top_indices:
+                logger.info(f"  - {self.class_names[idx]}: {mean_scores[idx]:.4f}")
+            
+            # Map YAMNet predictions to care labels
+            label, score = self._map_yamnet_to_care_labels(scores_np, self.class_names)
+            
+            logger.info(f"Inference result: {label} (score: {score:.4f})")
+            
+            return InferenceResponse(
+                label=label,
+                score=float(score)
+            )
+            
+        except Exception as e:
+            logger.error(f"Error during YAMNet inference: {e}", exc_info=True)
+            # Fallback to default prediction on error
+            return InferenceResponse(
+                label="normal",
+                score=0.5
+            )
 
 
 # Global instance

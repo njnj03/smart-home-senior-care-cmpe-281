@@ -25,6 +25,7 @@ export default function MachineLearningStatus(){
     model_type: '',
     accuracy: ''
   })
+  const [selectedFile, setSelectedFile] = React.useState(null)
 
   const loadModels = React.useCallback(async () => {
     try {
@@ -76,16 +77,22 @@ export default function MachineLearningStatus(){
 
   const handleAddModel = async (e) => {
     e.preventDefault()
+    
+    // Validate file is selected
+    if (!selectedFile) {
+      alert('Please select a model file to upload')
+      return
+    }
+    
     try {
       const modelData = {
         model_name: formData.model_name,
         version: formData.version || null,
-        file_path: formData.file_path,
         description: formData.description || null,
         model_type: formData.model_type || null,
         accuracy: formData.accuracy ? parseFloat(formData.accuracy) : null
       }
-      await api.models.create(modelData)
+      await api.models.create(selectedFile, modelData)
       setShowModal(false)
       setFormData({
         model_name: '',
@@ -95,6 +102,7 @@ export default function MachineLearningStatus(){
         model_type: '',
         accuracy: ''
       })
+      setSelectedFile(null)
       await loadModels()
     } catch (err) {
       console.error('Error creating model:', err)
@@ -163,6 +171,7 @@ export default function MachineLearningStatus(){
       model_type: '',
       accuracy: ''
     })
+    setSelectedFile(null)
     setShowModal(true)
   }
 
@@ -301,15 +310,29 @@ export default function MachineLearningStatus(){
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">File Path *</label>
+                    <label className="block text-sm font-medium mb-1">Model File *</label>
                     <input
-                      type="text"
+                      type="file"
                       required
-                      value={formData.file_path}
-                      onChange={(e) => setFormData({...formData, file_path: e.target.value})}
+                      accept=".keras,.h5,.pb,.tflite,.pth,.pt,.onnx,.pkl"
+                      onChange={(e) => {
+                        const file = e.target.files[0]
+                        setSelectedFile(file)
+                        if (file) {
+                          // Auto-fill model name if empty
+                          if (!formData.model_name) {
+                            const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '')
+                            setFormData({...formData, model_name: nameWithoutExt})
+                          }
+                        }
+                      }}
                       className="w-full px-3 py-2 border rounded-lg"
-                      placeholder="e.g., models/my_model.keras"
                     />
+                    {selectedFile && (
+                      <div className="mt-1 text-sm text-gray-600">
+                        Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Description</label>
