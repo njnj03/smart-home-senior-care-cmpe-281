@@ -14,6 +14,7 @@ export default function AlertHistory(){
   const [error,setError]=React.useState(null)
   const [actionLoading,setActionLoading]=React.useState(null)
   const [selected,setSelected]=React.useState(null)
+  const [selectedHouse,setSelectedHouse]=React.useState(null)
 
   const load=async()=>{
     try {
@@ -23,7 +24,8 @@ export default function AlertHistory(){
         api.alerts.list({ limit: 1000 }),
         api.houses.list()
       ])
-      const items = (alertsRes.alerts || []).filter(a => {
+      const allAlerts = alertsRes.alerts || []
+      const items = allAlerts.filter(a => {
         const alertTime = new Date(a.created_at).getTime()
         const rangeMs = range * 3600 * 1000
         return (Date.now() - alertTime) < rangeMs
@@ -31,6 +33,9 @@ export default function AlertHistory(){
       setAlerts(items)
       setHouses(housesRes.houses || [])
       setLoading(false)
+      
+      console.log('Total alerts from API:', allAlerts.length)
+      console.log('Alerts within', range, 'hours:', items.length)
     } catch (err) {
       console.error('Error loading alerts:', err)
       setError(err.message)
@@ -76,9 +81,11 @@ export default function AlertHistory(){
 
   if(loading) return <div className="max-w-6xl mx-auto p-4">Loading…</div>
   if(error) return <div className="max-w-6xl mx-auto p-4 text-red-600">Error: {error}</div>
+  
   return (<div className="max-w-6xl mx-auto p-4">
     <div className="card space-y-3">
-      <div className="flex flex-wrap gap-2 items-center justify-between"><h3 className="font-bold">Alert History</h3>
+      <div className="flex flex-wrap gap-2 items-center justify-between">
+        <h3 className="font-bold">Alert History</h3>
         <div className="flex gap-2">
           <input className="border rounded-xl px-3 py-2" placeholder="Search…" value={q} onChange={e=>setQ(e.target.value)} />
           <select className="border rounded-xl px-3 py-2" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
@@ -93,55 +100,87 @@ export default function AlertHistory(){
             <option value={6}>Last 6h</option>
             <option value={24}>Last 24h</option>
             <option value={72}>Last 72h</option>
+            <option value={168}>Last 7 days</option>
+            <option value={720}>Last 30 days</option>
+            <option value={999999}>All time</option>
           </select>
-        </div></div>
-      <table className="table"><thead><tr><th>House</th><th>Type</th><th>Severity</th><th>Status</th><th>Created</th><th>Location</th><th>Actions</th></tr></thead>
-        <tbody>{filtered.map(a=>{ const house=houses.find(h=>h.house_id===a.house_id); return (<tr key={a.alert_id} onClick={()=>setSelected(a)} className="cursor-pointer hover:bg-gray-50">
-          <td>{house?.house_name || a.house_id}</td>
-          <td>{a.alert_type_name || a.alert_type_id}</td>
-          <td><span className={`chip ${severityChip(a.severity)}`}>{a.severity}</span></td>
-          <td><span className={`chip ${statusChip(a.status)}`}>{a.status}</span></td>
-          <td>{formatPST(a.created_at)}</td>
-          <td className="text-sm">{getLocation(a)}</td>
-          <td onClick={(e)=>e.stopPropagation()}>
-            <div className="flex gap-1">
-              {a.status==='active' && (
-                <button 
-                  onClick={() => handleAction(a.alert_id, 'ack')}
-                  disabled={actionLoading === a.alert_id + 'ack'}
-                  className="text-xs px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 disabled:opacity-50"
-                  title="Acknowledge"
-                >
-                  Ack
-                </button>
-              )}
-              {(a.status==='active' || a.status==='acknowledged') && (
-                <>
-                  <button 
-                    onClick={() => handleAction(a.alert_id, 'resolve')}
-                    disabled={actionLoading === a.alert_id + 'resolve'}
-                    className="text-xs px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
-                    title="Resolve"
-                  >
-                    Resolve
-                  </button>
-                  <button 
-                    onClick={() => handleAction(a.alert_id, 'dismiss')}
-                    disabled={actionLoading === a.alert_id + 'dismiss'}
-                    className="text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 disabled:opacity-50"
-                    title="Dismiss"
-                  >
-                    Dismiss
-                  </button>
-                </>
-              )}
-              {(a.status==='resolved' || a.status==='dismissed') && (
-                <span className="text-xs text-gray-400">-</span>
-              )}
-            </div>
-          </td>
-        </tr>)})}</tbody>
-      </table></div>
-      <DetailsPopup open={!!selected} alert={selected} onClose={()=>setSelected(null)} onUpdate={load} />
-    </div>)
+        </div>
+      </div>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>House</th>
+            <th>Type</th>
+            <th>Severity</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Location</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.length === 0 ? (
+            <tr>
+              <td colSpan="7" className="text-center py-8 text-gray-500">
+                {alerts.length === 0 ? 'No alerts found in selected time range. Try selecting "All time".' : 'No alerts match your search/filter criteria.'}
+              </td>
+            </tr>
+          ) : (
+            filtered.map(a=>{ 
+              const house=houses.find(h=>h.house_id===a.house_id)
+              return (
+                <tr key={a.alert_id} className="hover:bg-gray-50">
+                  <td>{house?.house_name || a.house_id}</td>
+                  <td>{a.alert_type_name || a.alert_type_id}</td>
+                  <td><span className={`chip ${severityChip(a.severity)}`}>{a.severity}</span></td>
+                  <td><span className={`chip ${statusChip(a.status)}`}>{a.status}</span></td>
+                  <td>{formatPST(a.created_at)}</td>
+                  <td className="text-sm">{getLocation(a)}</td>
+                <td>
+                  <div className="flex gap-1 flex-wrap">
+                    <button onClick={() => {
+                      setSelected(a)
+                      setSelectedHouse(house)
+                    }} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700" title="View details">Details</button>
+                      {a.status==='active' && (
+                        <button 
+                          onClick={() => handleAction(a.alert_id, 'ack')}
+                          disabled={actionLoading === a.alert_id + 'ack'}
+                          className="text-xs px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 disabled:opacity-50"
+                          title="Acknowledge"
+                        >
+                          Ack
+                        </button>
+                      )}
+                      {(a.status==='active' || a.status==='acknowledged') && (
+                        <>
+                          <button 
+                            onClick={() => handleAction(a.alert_id, 'resolve')}
+                            disabled={actionLoading === a.alert_id + 'resolve'}
+                            className="text-xs px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                            title="Resolve"
+                          >
+                            Resolve
+                          </button>
+                          <button 
+                            onClick={() => handleAction(a.alert_id, 'dismiss')}
+                            disabled={actionLoading === a.alert_id + 'dismiss'}
+                            className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
+                            title="Dismiss"
+                          >
+                            Dismiss
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })
+          )}
+        </tbody>
+      </table>
+    </div>
+    <DetailsPopup open={!!selected} alert={selected} house={selectedHouse} onClose={()=>{setSelected(null); setSelectedHouse(null)}} onUpdate={load} />
+  </div>)
 }

@@ -11,8 +11,13 @@ const api = {
    */
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
+    
+    // Get auth token from localStorage
+    const token = localStorage.getItem('authToken');
+    
     const defaultHeaders = {
       'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
     };
 
     try {
@@ -39,6 +44,128 @@ const api = {
       console.error(`API Error [${endpoint}]:`, error);
       throw error;
     }
+  },
+
+  /**
+   * AUTHENTICATION API
+   */
+  auth: {
+    /**
+     * Login user and get JWT token
+     */
+    async login(email, password) {
+      const response = await api.request('/api/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+      
+      // Store token in localStorage
+      if (response.access_token) {
+        localStorage.setItem('authToken', response.access_token);
+      }
+      
+      return response;
+    },
+
+    /**
+     * Register a new user
+     */
+    async register(userData) {
+      return api.request('/api/v1/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(userData),
+      });
+    },
+
+    /**
+     * Get current authenticated user's information
+     */
+    async getCurrentUser() {
+      return api.request('/api/v1/auth/me');
+    },
+
+    /**
+     * List all users (Admin only)
+     */
+    async listUsers() {
+      return api.request('/api/v1/auth/users');
+    },
+
+    /**
+     * Create a new user (Admin only)
+     */
+    async createUser(userData) {
+      return api.request('/api/v1/auth/users', {
+        method: 'POST',
+        body: JSON.stringify(userData),
+      });
+    },
+
+    /**
+     * Update user (Admin only)
+     */
+    async updateUser(userId, userData) {
+      return api.request(`/api/v1/auth/users/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(userData),
+      });
+    },
+
+    /**
+     * Logout user (clear tokens)
+     */
+    logout() {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('smartHomeUser');
+    },
+  },
+
+  /**
+   * TENANTS API
+   */
+  tenants: {
+    /**
+     * List all tenants (Admin only)
+     */
+    async list() {
+      return api.request('/api/v1/tenants');
+    },
+
+    /**
+     * Get tenant by ID (Admin only)
+     */
+    async get(tenantId) {
+      return api.request(`/api/v1/tenants/${tenantId}`);
+    },
+
+    /**
+     * Create a new tenant (Admin only)
+     */
+    async create(tenantData) {
+      return api.request('/api/v1/tenants', {
+        method: 'POST',
+        body: JSON.stringify(tenantData),
+      });
+    },
+
+    /**
+     * Update tenant (Admin only)
+     */
+    async update(tenantId, tenantData) {
+      return api.request(`/api/v1/tenants/${tenantId}`, {
+        method: 'PUT',
+        body: JSON.stringify(tenantData),
+      });
+    },
+
+    /**
+     * Delete tenant (Admin only)
+     */
+    async delete(tenantId) {
+      return api.request(`/api/v1/tenants/${tenantId}`, {
+        method: 'DELETE',
+      });
+    },
   },
 
   /**

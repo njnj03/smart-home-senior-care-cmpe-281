@@ -3,7 +3,7 @@ import React from 'react'
 import api from '../services/api'
 import { chipByStatus, formatPST } from '../utils/format'
 
-export default function IoTDeviceManager(){
+export default function IoTDeviceManager({ userRole }){
   const [list,setList]=React.useState([])
   const [houses,setHouses]=React.useState([])
   const [loading,setLoading]=React.useState(true)
@@ -26,6 +26,9 @@ export default function IoTDeviceManager(){
     state: '',
     zipCode: ''
   })
+
+  // Check if user can manage devices (admin or iot_team)
+  const canManageDevices = userRole === 'admin' || userRole === 'iot_team'
 
   const loadDevices = async () => {
     try {
@@ -136,51 +139,57 @@ export default function IoTDeviceManager(){
     <div className="card">
       <div className="flex justify-between items-center mb-3">
         <h3 className="font-bold">IoT Device Management</h3>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => setShowAddDialog(true)}
-            className="btn bg-blue-500 text-white px-4 py-2 rounded-xl hover:bg-blue-600"
-          >
-            + Add Device
-          </button>
-          <button 
-            onClick={handleDeleteSelected}
-            disabled={selectedDevices.size === 0}
-            className="btn bg-red-500 text-white px-4 py-2 rounded-xl hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Delete Selected ({selectedDevices.size})
-          </button>
-        </div>
+        {canManageDevices && (
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setShowAddDialog(true)}
+              className="btn bg-blue-500 text-white px-4 py-2 rounded-xl hover:bg-blue-600"
+            >
+              + Add Device
+            </button>
+            <button 
+              onClick={handleDeleteSelected}
+              disabled={selectedDevices.size === 0}
+              className="btn bg-red-500 text-white px-4 py-2 rounded-xl hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Delete Selected ({selectedDevices.size})
+            </button>
+          </div>
+        )}
       </div>
       <table className="table mt-2">
         <thead>
           <tr>
-            <th className="w-12">
-              <input 
-                type="checkbox"
-                checked={selectedDevices.size === list.length && list.length > 0}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setSelectedDevices(new Set(list.map(d => d.device_id)))
-                  } else {
-                    setSelectedDevices(new Set())
-                  }
-                }}
-              />
-            </th>
+            {canManageDevices && (
+              <th className="w-12">
+                <input 
+                  type="checkbox"
+                  checked={selectedDevices.size === list.length && list.length > 0}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedDevices(new Set(list.map(d => d.device_id)))
+                    } else {
+                      setSelectedDevices(new Set())
+                    }
+                  }}
+                />
+              </th>
+            )}
             <th>House</th><th>Name</th><th>Location</th><th>Status</th><th>Last Heartbeat</th>
           </tr>
         </thead>
         <tbody>
           {list.map(d=>{ const house=houses.find(h=>h.house_id===d.house_id); return (
             <tr key={d.device_id}>
-              <td>
-                <input 
-                  type="checkbox"
-                  checked={selectedDevices.has(d.device_id)}
-                  onChange={() => toggleSelection(d.device_id)}
-                />
-              </td>
+              {canManageDevices && (
+                <td>
+                  <input 
+                    type="checkbox"
+                    checked={selectedDevices.has(d.device_id)}
+                    onChange={() => toggleSelection(d.device_id)}
+                  />
+                </td>
+              )}
               <td>{house?.house_name || d.house_id}</td>
               <td>{d.device_name}</td>
               <td>{d.location}</td>
