@@ -8,6 +8,7 @@ import { formatPST } from '../utils/format'
 export default function AlertLiveMap(){
   const [houses,setHouses]=React.useState([])
   const [alerts,setAlerts]=React.useState([])
+  const [devices,setDevices]=React.useState([])
   const [loading,setLoading]=React.useState(true)
   const [error,setError]=React.useState(null)
 
@@ -16,13 +17,15 @@ export default function AlertLiveMap(){
       setLoading(true)
       setError(null)
       
-      const [housesRes, alertsRes] = await Promise.all([
+      const [housesRes, alertsRes, devicesRes] = await Promise.all([
         api.houses.list(),
-        api.alerts.list({ status: 'active', limit: 100 })
+        api.alerts.list({ status: 'active', limit: 100 }),
+        api.devices.list()
       ])
       
       setHouses(housesRes.houses || [])
       setAlerts(alertsRes.alerts || [])
+      setDevices(devicesRes.devices || [])
       setLoading(false)
     } catch (err) {
       console.error('Error loading map data:', err)
@@ -43,7 +46,33 @@ export default function AlertLiveMap(){
     <div className="card"><h3 className="font-bold mb-2">Smart Home Cloud Dashboard</h3>
       <MapContainer center={center} zoom={9} scrollWheelZoom={true} style={{height:'520px', width:'100%', borderRadius:'14px'}}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        {houses.map(h=> h.latitude && h.longitude ? <Marker key={h.house_id} position={[h.latitude,h.longitude]}><Popup><div className="font-semibold">{h.house_name}</div><div className="text-xs text-gray-500">ID {h.house_id}</div></Popup></Marker> : null)}
+        {houses.map(h=> { 
+          if (!h.latitude || !h.longitude) return null;
+          const houseDevices = devices.filter(d => d.house_id === h.house_id);
+          return (
+            <Marker key={h.house_id} position={[h.latitude,h.longitude]}>
+              <Popup>
+                <div className="font-semibold text-base mb-1">{h.house_name}</div>
+                <div className="text-xs text-gray-500 mb-2">ID {h.house_id}</div>
+                {houseDevices.length > 0 && (
+                  <div>
+                    <div className="text-xs font-semibold text-gray-700 mb-1">Devices ({houseDevices.length}):</div>
+                    <div className="space-y-1">
+                      {houseDevices.map(d => (
+                        <div key={d.device_id} className="text-xs flex items-center justify-between gap-2">
+                          <span className="truncate">{d.device_name}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] ${d.status==='online'?'bg-green-100 text-green-700':d.status==='offline'?'bg-red-100 text-red-700':'bg-yellow-100 text-yellow-700'}`}>
+                            {d.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Popup>
+            </Marker>
+          );
+        })}
         {alerts.slice(0,30).map(a=>{ const house=houses.find(h=>h.house_id===a.house_id); if(!house || !house.latitude || !house.longitude) return null; return (
           <CircleMarker key={a.alert_id} center={[house.latitude,house.longitude]} radius={10} pathOptions={{color: colorBySeverity(a.severity)}}>
             <Popup><div className="font-semibold">Alert {a.alert_id}</div><div className="text-xs">Severity: {a.severity} • Status: {a.status}</div><div className="text-xs text-gray-500">{formatPST(a.created_at)}</div></Popup>

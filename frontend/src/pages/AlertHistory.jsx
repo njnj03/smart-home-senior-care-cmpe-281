@@ -7,6 +7,7 @@ import DetailsPopup from '../components/DetailsPopup'
 export default function AlertHistory(){
   const [alerts,setAlerts]=React.useState([])
   const [houses,setHouses]=React.useState([])
+  const [devices,setDevices]=React.useState([])
   const [q,setQ]=React.useState('')
   const [range,setRange]=React.useState(24)
   const [statusFilter,setStatusFilter]=React.useState('all')
@@ -20,9 +21,10 @@ export default function AlertHistory(){
     try {
       setLoading(true)
       setError(null)
-      const [alertsRes, housesRes] = await Promise.all([
+      const [alertsRes, housesRes, devicesRes] = await Promise.all([
         api.alerts.list({ limit: 1000 }),
-        api.houses.list()
+        api.houses.list(),
+        api.devices.list()
       ])
       const allAlerts = alertsRes.alerts || []
       const items = allAlerts.filter(a => {
@@ -32,6 +34,7 @@ export default function AlertHistory(){
       })
       setAlerts(items)
       setHouses(housesRes.houses || [])
+      setDevices(devicesRes.devices || [])
       setLoading(false)
       
       console.log('Total alerts from API:', allAlerts.length)
@@ -110,6 +113,7 @@ export default function AlertHistory(){
         <thead>
           <tr>
             <th>House</th>
+            <th>Device</th>
             <th>Type</th>
             <th>Severity</th>
             <th>Status</th>
@@ -121,16 +125,18 @@ export default function AlertHistory(){
         <tbody>
           {filtered.length === 0 ? (
             <tr>
-              <td colSpan="7" className="text-center py-8 text-gray-500">
+              <td colSpan="8" className="text-center py-8 text-gray-500">
                 {alerts.length === 0 ? 'No alerts found in selected time range. Try selecting "All time".' : 'No alerts match your search/filter criteria.'}
               </td>
             </tr>
           ) : (
             filtered.map(a=>{ 
               const house=houses.find(h=>h.house_id===a.house_id)
+              const device=devices.find(d=>d.device_id===a.device_id)
               return (
                 <tr key={a.alert_id} className="hover:bg-gray-50">
                   <td>{house?.house_name || a.house_id}</td>
+                  <td>{device?.device_name || a.device_id || 'N/A'}</td>
                   <td>{a.alert_type_name || a.alert_type_id}</td>
                   <td><span className={`chip ${severityChip(a.severity)}`}>{a.severity}</span></td>
                   <td><span className={`chip ${statusChip(a.status)}`}>{a.status}</span></td>

@@ -9,6 +9,7 @@ import IoTDeviceManager from './pages/IoTDeviceManager'
 import AlertHistory from './pages/AlertHistory'
 import SettingsPage from './pages/SettingsPage'
 import MachineLearningStatus from './pages/MachineLearningStatus'
+import UsersManagement from './pages/UsersManagement'
 
 export default function App(){
   const [user, setUser] = React.useState(() => {
@@ -62,14 +63,19 @@ export default function App(){
             <NavLink to="/devices" className={({isActive})=>`px-3 py-2 rounded-xl ${isActive?'bg-primary text-white':'hover:bg-gray-100'}`}>Devices</NavLink>
           )}
           
-          <NavLink to="/history" className={({isActive})=>`px-3 py-2 rounded-xl ${isActive?'bg-primary text-white':'hover:bg-gray-100'}`}>History</NavLink>
+          <NavLink to="/history" className={({isActive})=>`px-3 py-2 rounded-xl ${isActive?'bg-primary text-white':'hover:bg-gray-100'}`}>Alerts</NavLink>
+          
+          {/* Users Management - visible to admin only */}
+          {hasRole('admin') && (
+            <NavLink to="/users" className={({isActive})=>`px-3 py-2 rounded-xl ${isActive?'bg-primary text-white':'hover:bg-gray-100'}`}>Users</NavLink>
+          )}
           
           {/* ML Models - visible to admin only */}
           {hasRole('admin') && (
-            <NavLink to="/ml" className={({isActive})=>`px-3 py-2 rounded-xl ${isActive?'bg-primary text-white':'hover:bg-gray-100'}`}>ML</NavLink>
+            <NavLink to="/ml" className={({isActive})=>`px-3 py-2 rounded-xl ${isActive?'bg-primary text-white':'hover:bg-gray-100'}`}>Models</NavLink>
           )}
           
-          <NavLink to="/settings" className={({isActive})=>`px-3 py-2 rounded-xl ${isActive?'bg-primary text-white':'hover:bg-gray-100'}`}>Settings</NavLink>
+          <NavLink to="/settings" className={({isActive})=>`px-3 py-2 rounded-xl ${isActive?'bg-primary text-white':'hover:bg-gray-100'}`}>Profile</NavLink>
           <div className="relative">
             <button 
               onClick={() => setShowProfile(!showProfile)}
@@ -109,6 +115,13 @@ export default function App(){
       
       <Route path="/history" element={<AlertHistory/>}/>
       <Route path="/settings" element={<SettingsPage user={user} />}/>
+      
+      {/* Users Management - protected route for admin only */}
+      {hasRole('admin') ? (
+        <Route path="/users" element={<UsersManagement/>}/>
+      ) : (
+        <Route path="/users" element={<Navigate to="/" replace />}/>
+      )}
       
       {/* ML Models - protected route for admin only */}
       {hasRole('admin') ? (

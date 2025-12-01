@@ -8,6 +8,8 @@ export default function SettingsPage({ user }){
     lastName: user?.lastName || '',
     email: user?.email || '',
     role: user?.role || '',
+    tenantId: user?.tenantId || null,
+    tenantName: '',
   })
   const [loading, setLoading] = React.useState(true)
   const [saved, setSaved] = React.useState(false)
@@ -20,11 +22,25 @@ export default function SettingsPage({ user }){
       try {
         setLoading(true)
         const userData = await api.auth.getCurrentUser()
+        
+        // Fetch tenant name if tenant_id exists
+        let tenantName = ''
+        if (userData.tenant_id) {
+          try {
+            const tenantData = await api.tenants.get(userData.tenant_id)
+            tenantName = tenantData.tenant_name || ''
+          } catch (err) {
+            console.error('Error loading tenant:', err)
+          }
+        }
+        
         setProfile({
           firstName: userData.first_name || '',
           lastName: userData.last_name || '',
           email: userData.email || '',
           role: userData.role || '',
+          tenantId: userData.tenant_id || null,
+          tenantName: tenantName,
         })
         setLoading(false)
       } catch (err) {
@@ -117,6 +133,14 @@ export default function SettingsPage({ user }){
         <input 
           className="border rounded-xl px-3 py-2 w-full bg-gray-50 cursor-not-allowed" 
           value={getRoleDisplay(profile.role)} 
+          disabled 
+        />
+      </div>
+      <div className="mt-3">
+        <label className="block text-sm font-medium text-gray-700 mb-1">Tenant</label>
+        <input 
+          className="border rounded-xl px-3 py-2 w-full bg-gray-50 cursor-not-allowed" 
+          value={profile.tenantName || `Tenant ID: ${profile.tenantId || 'N/A'}`} 
           disabled 
         />
       </div>
