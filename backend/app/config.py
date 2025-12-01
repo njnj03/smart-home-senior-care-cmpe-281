@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     # ML Model path (defaults to model in models/ directory)
     ml_model_path: Optional[str] = None  # If None, uses models/my_yamnet_human_model.keras
     
+    # JWT Authentication
+    jwt_secret_key: str = "your-secret-key-change-this-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 1440  # 24 hours
+    
     class Config:
         env_file = ".env"
         case_sensitive = False

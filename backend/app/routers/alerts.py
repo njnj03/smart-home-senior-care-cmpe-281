@@ -9,6 +9,8 @@ from app.database import get_db
 from app.models.alert import Alert
 from app.models.house import House
 from app.models.alert_type import AlertType
+from app.models.user import User
+from app.dependencies.auth import require_any_user, require_house_owner
 # Audit logs removed - not needed
 from app.schemas.alert import (
     AlertResponse,
@@ -31,6 +33,7 @@ async def list_alerts(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_any_user),
 ):
     """
     List alerts with optional filtering.
@@ -81,6 +84,7 @@ async def list_alerts(
 async def get_alert(
     alert_id: int,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_any_user),
 ):
     """
     Get alert details by ID.
@@ -111,6 +115,7 @@ async def acknowledge_alert(
     alert_id: int,
     request: AlertAcknowledge,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_house_owner),
 ):
     """
     Acknowledge an alert.
@@ -160,6 +165,7 @@ async def resolve_alert(
     alert_id: int,
     request: AlertResolve,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_house_owner),
 ):
     """
     Resolve an alert.
@@ -209,6 +215,7 @@ async def dismiss_alert(
     alert_id: int,
     request: AlertDismiss,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_house_owner),
 ):
     """
     Dismiss an alert (mark as false_positive).

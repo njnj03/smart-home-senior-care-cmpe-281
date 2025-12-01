@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models.house import House
+from app.models.user import User
+from app.dependencies.auth import require_any_user
 from app.schemas.house import HouseResponse, HouseListResponse
 
 logger = logging.getLogger(__name__)
@@ -15,6 +17,7 @@ router = APIRouter(prefix="/api/v1/houses", tags=["houses"])
 @router.get("", response_model=HouseListResponse)
 async def list_houses(
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_any_user),
 ):
     """
     List all houses.
@@ -32,6 +35,7 @@ async def list_houses(
 async def get_house(
     house_id: int,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_any_user),
 ):
     """
     Get house details by ID.

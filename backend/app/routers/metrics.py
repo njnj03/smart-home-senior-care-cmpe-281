@@ -7,6 +7,8 @@ from app.database import get_db
 from app.models.alert import Alert
 from app.models.device import Device
 from app.models.house import House
+from app.models.user import User
+from app.dependencies.auth import require_any_user
 from app.schemas.metrics import MetricsResponse, SystemHealth
 import random
 
@@ -18,6 +20,7 @@ router = APIRouter(prefix="/api/v1/metrics", tags=["metrics"])
 @router.get("", response_model=MetricsResponse)
 async def get_metrics(
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_any_user),
 ):
     """
     Get dashboard metrics.

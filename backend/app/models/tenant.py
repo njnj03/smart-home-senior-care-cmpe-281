@@ -15,4 +15,7 @@ class Tenant(Base):
     description = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    
+    # Relationships
+    users = relationship("User", back_populates="tenant")
 

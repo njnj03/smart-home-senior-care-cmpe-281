@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from app.database import get_db
 from app.models.ml_model import MLModel
+from app.models.user import User
+from app.dependencies.auth import require_admin, require_any_user
 from app.schemas.ml_model import (
     MLModelResponse,
     MLModelListResponse,
@@ -23,6 +25,7 @@ router = APIRouter(prefix="/api/v1/models", tags=["models"])
 @router.get("", response_model=MLModelListResponse)
 async def list_models(
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_any_user),
 ):
     """
     List all ML models with active model highlighted.
@@ -63,6 +66,7 @@ async def list_models(
 @router.get("/active", response_model=MLModelResponse)
 async def get_active_model(
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_any_user),
 ):
     """
     Get the currently active model.
@@ -90,6 +94,7 @@ async def get_active_model(
 async def get_model(
     model_id: int,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_any_user),
 ):
     """
     Get model details by ID.
@@ -117,6 +122,7 @@ async def get_model(
 async def create_model(
     model_data: MLModelCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
 ):
     """
     Register a new ML model in the database.
@@ -158,6 +164,7 @@ async def update_model(
     model_id: int,
     model_data: MLModelUpdate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
 ):
     """
     Update model metadata.
@@ -280,6 +287,7 @@ async def activate_model(
 async def delete_model(
     model_id: int,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
 ):
     """
     Delete a model record from the database.

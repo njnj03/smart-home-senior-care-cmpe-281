@@ -12,6 +12,8 @@ from app.models.house import House
 from app.models.device_type import DeviceType
 from app.models.event import Event
 from app.models.alert import Alert
+from app.models.user import User
+from app.dependencies.auth import require_any_user, require_admin, require_iot_team
 from app.schemas.device import (
     DeviceResponse,
     DeviceListResponse,
@@ -29,6 +31,7 @@ router = APIRouter(prefix="/api/v1/devices", tags=["devices"])
 async def list_devices(
     house_id: Optional[int] = Query(None, description="Filter by house ID"),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_any_user),
 ):
     """
     List devices, optionally filtered by house ID.
@@ -50,6 +53,7 @@ async def list_devices(
 async def get_device(
     device_id: int,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_any_user),
 ):
     """
     Get device details by ID.
@@ -68,6 +72,7 @@ async def get_device(
 async def create_device(
     device_data: DeviceCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
 ):
     """
     Create a new device.
@@ -123,6 +128,7 @@ async def update_device(
     device_id: int,
     device_data: DeviceUpdate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_iot_team),
 ):
     """
     Update device details.
@@ -210,6 +216,7 @@ async def device_heartbeat(
 async def delete_device(
     device_id: int,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
 ):
     """
     Delete a device.

@@ -1,7 +1,9 @@
 """Inference router for testing ML predictions."""
 import logging
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from app.services.inference import inference_service
+from app.models.user import User
+from app.dependencies.auth import require_iot_team
 from app.schemas.inference import InferenceResponse
 from app.services.storage import storage_service
 import tempfile
@@ -15,6 +17,7 @@ router = APIRouter(prefix="/api/v1/predict", tags=["inference"])
 @router.post("", response_model=InferenceResponse)
 async def predict(
     audio_file: UploadFile = File(...),
+    current_user: User = Depends(require_iot_team),
 ):
     """
     Test endpoint for running inference on an audio file.
