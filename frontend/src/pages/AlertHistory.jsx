@@ -16,6 +16,7 @@ export default function AlertHistory(){
   const [actionLoading,setActionLoading]=React.useState(null)
   const [selected,setSelected]=React.useState(null)
   const [selectedHouse,setSelectedHouse]=React.useState(null)
+  const [selectedDevice,setSelectedDevice]=React.useState(null)
 
   const load=async()=>{
     try {
@@ -147,6 +148,7 @@ export default function AlertHistory(){
                     <button onClick={() => {
                       setSelected(a)
                       setSelectedHouse(house)
+                      setSelectedDevice(device)
                     }} className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700" title="View details">Details</button>
                       {a.status==='active' && (
                         <button 
@@ -187,6 +189,6 @@ export default function AlertHistory(){
         </tbody>
       </table>
     </div>
-    <DetailsPopup open={!!selected} alert={selected} house={selectedHouse} onClose={()=>{setSelected(null); setSelectedHouse(null)}} onUpdate={load} />
+    <DetailsPopup open={!!selected} alert={selected} house={selectedHouse} device={selectedDevice} onClose={()=>{setSelected(null); setSelectedHouse(null); setSelectedDevice(null)}} onUpdate={load} />
   </div>)
 }

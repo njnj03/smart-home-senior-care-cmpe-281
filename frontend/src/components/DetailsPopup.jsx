@@ -6,7 +6,7 @@ import 'leaflet/dist/leaflet.css'
 import api from '../services/api'
 import { formatPST } from '../utils/format'
 
-export default function DetailsPopup({open,onClose,alert,onUpdate,house}){
+export default function DetailsPopup({open,onClose,alert,onUpdate,house,device}){
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState(null)
   const [showMap, setShowMap] = React.useState(false)
@@ -40,7 +40,7 @@ export default function DetailsPopup({open,onClose,alert,onUpdate,house}){
     <motion.div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
       <motion.div className="bg-white rounded-2xl p-4 max-w-2xl w-full border border-gray-200 max-h-[90vh] overflow-y-auto" initial={{y:20,opacity:0}} animate={{y:0,opacity:1}} exit={{y:20,opacity:0}}>
         <div className="flex justify-between items-center mb-2">
-          <h3 className="font-bold">Alert {alert.alert_id || alert.id}</h3>
+          <h3 className="font-bold">Alert Details</h3>
           <div className="flex gap-2">
             {hasLocation && !showMap && (
               <button className="btn bg-blue-500 text-white hover:bg-blue-600 px-3 py-1 rounded-xl text-sm" onClick={() => setShowMap(true)}>📍 Show Map</button>
@@ -65,7 +65,7 @@ export default function DetailsPopup({open,onClose,alert,onUpdate,house}){
               </Marker>
               <CircleMarker center={[house.latitude, house.longitude]} radius={12} pathOptions={{color: colorBySeverity(alert.severity), fillOpacity: 0.6}}>
                 <Popup>
-                  <div className="font-semibold">Alert {alert.alert_id || alert.id}</div>
+                  <div className="font-semibold">{house?.house_name || 'Alert'}</div>
                   <div className="text-xs">Severity: {alert.severity}</div>
                   <div className="text-xs">Status: {alert.status}</div>
                 </Popup>
@@ -75,8 +75,10 @@ export default function DetailsPopup({open,onClose,alert,onUpdate,house}){
         )}
         
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <div><span className="text-gray-500">House:</span> {alert.house_id || alert.houseId}</div>
-          <div><span className="text-gray-500">Device:</span> {alert.device_id || 'N/A'}</div>
+          <div><span className="text-gray-500">House:</span> {house?.house_name || alert.house_id || alert.houseId || 'N/A'}</div>
+          <div><span className="text-gray-500">Device:</span> {device?.device_name || 'N/A'}</div>
+          <div><span className="text-gray-500">Location:</span> {device?.location || 'N/A'}</div>
+          <div><span className="text-gray-500">Alert Type:</span> {alert.alert_type_name || alert.alert_type_id || 'Unknown'}</div>
           <div><span className="text-gray-500">Severity:</span> <span className={`chip ${severityChip(alert.severity)}`}>{alert.severity}</span></div>
           <div><span className="text-gray-500">Status:</span> {alert.status}</div>
           <div><span className="text-gray-500">Created:</span> {formatPST(alert.created_at || alert.createdAt)}</div>

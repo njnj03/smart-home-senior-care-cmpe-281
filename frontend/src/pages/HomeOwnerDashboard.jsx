@@ -13,6 +13,7 @@ export default function HomeOwnerDashboard(){
   const [houses,setHouses]=React.useState([])
   const [selected,setSelected]=React.useState(null)
   const [selectedHouse,setSelectedHouse]=React.useState(null)
+  const [selectedDevice,setSelectedDevice]=React.useState(null)
   const [loading,setLoading]=React.useState(true)
   const [error,setError]=React.useState(null)
   const [highlightedAlert,setHighlightedAlert]=React.useState(null)
@@ -126,6 +127,7 @@ export default function HomeOwnerDashboard(){
               <button onClick={() => {
                 setSelected(a)
                 setSelectedHouse(house)
+                setSelectedDevice(device)
               }} className="text-blue-600 hover:text-blue-800 text-sm font-medium">Details</button>
             </td>
           </tr>)})}</tbody></table>
@@ -137,6 +139,6 @@ export default function HomeOwnerDashboard(){
         <div className={`chip ${d.status==='online'?'chip-green':d.status==='offline'?'chip-red':'chip-yellow'}`}>{d.status}</div></div>))}
       </div>
     </div>
-    <DetailsPopup open={!!selected} alert={selected} house={selectedHouse} onClose={()=>{setSelected(null); setSelectedHouse(null)}} onUpdate={refresh}/>
+    <DetailsPopup open={!!selected} alert={selected} house={selectedHouse} device={selectedDevice} onClose={()=>{setSelected(null); setSelectedHouse(null); setSelectedDevice(null)}} onUpdate={refresh}/>
   </div>)
 }
