@@ -23,6 +23,15 @@ class AlertResponse(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     notes: Optional[str] = None
+    # Device information
+    device_name: Optional[str] = None
+    device_location: Optional[str] = None
+    # House information
+    house_name: Optional[str] = None
+    house_address: Optional[str] = None
+    house_city: Optional[str] = None
+    house_state: Optional[str] = None
+    house_zip_code: Optional[str] = None
     
     class Config:
         from_attributes = True

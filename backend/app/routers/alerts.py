@@ -8,6 +8,7 @@ from sqlalchemy import select, and_, func
 from app.database import get_db
 from app.models.alert import Alert
 from app.models.house import House
+from app.models.device import Device
 from app.models.alert_type import AlertType
 from app.models.user import User
 from app.dependencies.auth import require_any_user, require_house_owner
@@ -37,9 +38,20 @@ async def list_alerts(
 ):
     """
     List alerts with optional filtering.
+    Returns device location, device name, and house name.
     """
-    query = select(Alert, House.latitude, House.longitude, AlertType.type_name).join(
+    query = select(
+        Alert, 
+        House.latitude, 
+        House.longitude, 
+        House.house_name,
+        AlertType.type_name,
+        Device.device_name,
+        Device.location
+    ).join(
         House, House.house_id == Alert.house_id
+    ).join(
+        Device, Device.device_id == Alert.device_id
     ).join(
         AlertType, AlertType.alert_type_id == Alert.alert_type_id
     )
@@ -70,11 +82,14 @@ async def list_alerts(
     rows = result.all()
 
     alerts = []
-    for alert, lat, lng, alert_type_name in rows:
+    for alert, lat, lng, house_name, alert_type_name, device_name, device_location in rows:
         alert_obj = AlertResponse.model_validate(alert)
         alert_obj.latitude = lat
         alert_obj.longitude = lng
         alert_obj.alert_type_name = alert_type_name
+        alert_obj.house_name = house_name
+        alert_obj.device_name = device_name
+        alert_obj.device_location = device_location
         alerts.append(alert_obj)
 
     return AlertListResponse(alerts=alerts, total=total or 0)
@@ -88,9 +103,24 @@ async def get_alert(
 ):
     """
     Get alert details by ID.
+    Returns device location, device name, house name, and full house location details.
     """
-    query = select(Alert, House.latitude, House.longitude, AlertType.type_name).join(
+    query = select(
+        Alert,
+        House.latitude,
+        House.longitude,
+        House.house_name,
+        House.address,
+        House.city,
+        House.state,
+        House.zip_code,
+        AlertType.type_name,
+        Device.device_name,
+        Device.location
+    ).join(
         House, House.house_id == Alert.house_id
+    ).join(
+        Device, Device.device_id == Alert.device_id
     ).join(
         AlertType, AlertType.alert_type_id == Alert.alert_type_id
     ).where(Alert.alert_id == alert_id)
@@ -101,11 +131,18 @@ async def get_alert(
     if not row:
         raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
     
-    alert, lat, lng, alert_type_name = row
+    alert, lat, lng, house_name, house_address, house_city, house_state, house_zip, alert_type_name, device_name, device_location = row
     alert_obj = AlertResponse.model_validate(alert)
     alert_obj.latitude = lat
     alert_obj.longitude = lng
     alert_obj.alert_type_name = alert_type_name
+    alert_obj.house_name = house_name
+    alert_obj.house_address = house_address
+    alert_obj.house_city = house_city
+    alert_obj.house_state = house_state
+    alert_obj.house_zip_code = house_zip
+    alert_obj.device_name = device_name
+    alert_obj.device_location = device_location
     
     return alert_obj
 
@@ -121,8 +158,18 @@ async def acknowledge_alert(
     Acknowledge an alert.
     Valid transitions: active -> acknowledged
     """
-    query = select(Alert, House.latitude, House.longitude, AlertType.type_name).join(
+    query = select(
+        Alert,
+        House.latitude,
+        House.longitude,
+        House.house_name,
+        AlertType.type_name,
+        Device.device_name,
+        Device.location
+    ).join(
         House, House.house_id == Alert.house_id
+    ).join(
+        Device, Device.device_id == Alert.device_id
     ).join(
         AlertType, AlertType.alert_type_id == Alert.alert_type_id
     ).where(Alert.alert_id == alert_id)
@@ -133,7 +180,7 @@ async def acknowledge_alert(
     if not row:
         raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
     
-    alert, lat, lng, alert_type_name = row
+    alert, lat, lng, house_name, alert_type_name, device_name, device_location = row
     
     # Validate state transition
     if alert.status != "active":
@@ -156,6 +203,9 @@ async def acknowledge_alert(
     alert_obj.latitude = lat
     alert_obj.longitude = lng
     alert_obj.alert_type_name = alert_type_name
+    alert_obj.house_name = house_name
+    alert_obj.device_name = device_name
+    alert_obj.device_location = device_location
     
     return alert_obj
 
@@ -171,8 +221,18 @@ async def resolve_alert(
     Resolve an alert.
     Valid transitions: active -> resolved, acknowledged -> resolved
     """
-    query = select(Alert, House.latitude, House.longitude, AlertType.type_name).join(
+    query = select(
+        Alert,
+        House.latitude,
+        House.longitude,
+        House.house_name,
+        AlertType.type_name,
+        Device.device_name,
+        Device.location
+    ).join(
         House, House.house_id == Alert.house_id
+    ).join(
+        Device, Device.device_id == Alert.device_id
     ).join(
         AlertType, AlertType.alert_type_id == Alert.alert_type_id
     ).where(Alert.alert_id == alert_id)
@@ -183,7 +243,7 @@ async def resolve_alert(
     if not row:
         raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
     
-    alert, lat, lng, alert_type_name = row
+    alert, lat, lng, house_name, alert_type_name, device_name, device_location = row
     
     # Validate state transition
     if alert.status not in ["active", "acknowledged"]:
@@ -206,6 +266,9 @@ async def resolve_alert(
     alert_obj.latitude = lat
     alert_obj.longitude = lng
     alert_obj.alert_type_name = alert_type_name
+    alert_obj.house_name = house_name
+    alert_obj.device_name = device_name
+    alert_obj.device_location = device_location
     
     return alert_obj
 
@@ -221,8 +284,18 @@ async def dismiss_alert(
     Dismiss an alert (mark as false_positive).
     Valid transitions: active -> false_positive, acknowledged -> false_positive
     """
-    query = select(Alert, House.latitude, House.longitude, AlertType.type_name).join(
+    query = select(
+        Alert,
+        House.latitude,
+        House.longitude,
+        House.house_name,
+        AlertType.type_name,
+        Device.device_name,
+        Device.location
+    ).join(
         House, House.house_id == Alert.house_id
+    ).join(
+        Device, Device.device_id == Alert.device_id
     ).join(
         AlertType, AlertType.alert_type_id == Alert.alert_type_id
     ).where(Alert.alert_id == alert_id)
@@ -233,7 +306,7 @@ async def dismiss_alert(
     if not row:
         raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
     
-    alert, lat, lng, alert_type_name = row
+    alert, lat, lng, house_name, alert_type_name, device_name, device_location = row
     
     # Validate state transition
     if alert.status not in ["active", "acknowledged"]:
@@ -255,5 +328,8 @@ async def dismiss_alert(
     alert_obj.latitude = lat
     alert_obj.longitude = lng
     alert_obj.alert_type_name = alert_type_name
+    alert_obj.house_name = house_name
+    alert_obj.device_name = device_name
+    alert_obj.device_location = device_location
     
     return alert_obj
