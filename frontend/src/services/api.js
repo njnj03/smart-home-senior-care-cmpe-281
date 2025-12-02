@@ -287,8 +287,14 @@ const api = {
     /**
      * List all houses
      */
-    async list() {
-      return api.request('/api/v1/houses');
+    async list(params = {}) {
+      const queryParams = new URLSearchParams();
+      if (params.userId)   queryParams.append('user_id', params.userId);
+      if (params.tenantId) queryParams.append('tenant_id', params.tenantId);
+
+      const queryString = queryParams.toString();
+      const endpoint = `/api/v1/houses${queryString ? `?${queryString}` : ''}`;
+      return api.request(endpoint);
     },
 
     /**

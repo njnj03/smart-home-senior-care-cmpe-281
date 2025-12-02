@@ -17,6 +17,7 @@ router = APIRouter(prefix="/api/v1/houses", tags=["houses"])
 
 @router.get("", response_model=HouseListResponse)
 async def list_houses(
+    user_id: int | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_any_user),
 ):
@@ -24,6 +25,8 @@ async def list_houses(
     List all houses.
     """
     query = select(House)
+    if user_id is not None:
+        query = query.where(House.user_id == user_id)
     result = await db.execute(query)
     houses = result.scalars().all()
     

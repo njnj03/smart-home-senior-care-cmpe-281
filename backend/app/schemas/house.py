@@ -8,6 +8,7 @@ class HouseResponse(BaseModel):
     """Schema for house response."""
     house_id: int
     tenant_id: int
+    user_id: int = None
     house_name: str
     address: Optional[str] = None
     city: Optional[str] = None
@@ -18,6 +19,8 @@ class HouseResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     is_active: bool
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     
     class Config:
         from_attributes = True

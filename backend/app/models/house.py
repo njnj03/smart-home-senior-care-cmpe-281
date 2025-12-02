@@ -12,6 +12,7 @@ class House(Base):
     
     house_id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.tenant_id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
     house_name = Column(String(255), nullable=False)
     address = Column(String(500), nullable=True)
     city = Column(String(100), nullable=True)
