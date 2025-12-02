@@ -23,6 +23,19 @@ class HouseResponse(BaseModel):
         from_attributes = True
 
 
+class HouseCreate(BaseModel):
+    """Schema for creating a house."""
+    tenant_id: int
+    house_name: str
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip_code: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    is_active: bool = True
+
+
 class HouseListResponse(BaseModel):
     """Schema for house list response."""
     houses: List[HouseResponse]

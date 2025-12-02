@@ -9,6 +9,8 @@ export default function UsersManagement(){
   const [error,setError]=React.useState(null)
   const [showCreateModal,setShowCreateModal]=React.useState(false)
   const [editingUser,setEditingUser]=React.useState(null)
+  const [tenants,setTenants]=React.useState([])
+  const [tenantsLoading,setTenantsLoading]=React.useState(false)
   
   // Form states
   const [formData,setFormData]=React.useState({
@@ -17,7 +19,7 @@ export default function UsersManagement(){
     first_name: '',
     last_name: '',
     role: 'house_owner',
-    tenant_id: 1
+    tenant_id: null
   })
   const [formLoading,setFormLoading]=React.useState(false)
   const [formError,setFormError]=React.useState('')
@@ -36,16 +38,36 @@ export default function UsersManagement(){
     }
   }
 
-  React.useEffect(()=>{ load() },[])
+  const loadTenants = async () => {
+    try {
+      setTenantsLoading(true)
+      const res = await api.tenants.list()
+      setTenants(res.tenants || [])
+      // Set default tenant_id to first tenant if available
+      if (res.tenants && res.tenants.length > 0 && !formData.tenant_id) {
+        setFormData(prev => ({ ...prev, tenant_id: res.tenants[0].tenant_id }))
+      }
+    } catch (err) {
+      console.error('Error loading tenants:', err)
+    } finally {
+      setTenantsLoading(false)
+    }
+  }
+
+  React.useEffect(()=>{ 
+    load()
+    loadTenants()
+  },[])
 
   const resetForm = () => {
+    const defaultTenantId = tenants.length > 0 ? tenants[0].tenant_id : null
     setFormData({
       email: '',
       password: '',
       first_name: '',
       last_name: '',
       role: 'house_owner',
-      tenant_id: 1
+      tenant_id: defaultTenantId
     })
     setFormError('')
     setEditingUser(null)
@@ -55,6 +77,13 @@ export default function UsersManagement(){
     e.preventDefault()
     setFormLoading(true)
     setFormError('')
+
+    // Validate tenant is selected
+    if (!formData.tenant_id) {
+      setFormError('Please select a tenant')
+      setFormLoading(false)
+      return
+    }
 
     try {
       await api.auth.createUser(formData)
@@ -130,7 +159,8 @@ export default function UsersManagement(){
           <p className="text-sm text-gray-500">Manage user accounts and assign roles</p>
         </div>
         <button 
-          onClick={() => {
+          onClick={async () => {
+            await loadTenants() // Refresh tenants list before opening modal
             resetForm()
             setShowCreateModal(true)
           }}
@@ -166,7 +196,7 @@ export default function UsersManagement(){
                     {u.role}
                   </span>
                 </td>
-                <td>{u.tenant_id}</td>
+                <td>{u.tenant_name || `Tenant ${u.tenant_id}`}</td>
                 <td>
                   <span className={`chip ${u.is_active ? 'chip-green' : 'chip-red'}`}>
                     {u.is_active ? 'Active' : 'Inactive'}
@@ -261,14 +291,26 @@ export default function UsersManagement(){
             </div>
 
             <div>
-              <label className="text-sm font-medium text-gray-700">Tenant ID</label>
-              <input 
-                type="number"
-                required
-                className="w-full border rounded-lg px-3 py-2 text-sm"
-                value={formData.tenant_id}
-                onChange={e => setFormData({...formData, tenant_id: parseInt(e.target.value)})}
-              />
+              <label className="text-sm font-medium text-gray-700">Tenant</label>
+              {tenantsLoading ? (
+                <div className="w-full border rounded-lg px-3 py-2 text-sm text-gray-500">
+                  Loading tenants...
+                </div>
+              ) : (
+                <select 
+                  required
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                  value={formData.tenant_id || ''}
+                  onChange={e => setFormData({...formData, tenant_id: parseInt(e.target.value)})}
+                >
+                  <option value="">Select a tenant</option>
+                  {tenants.map(tenant => (
+                    <option key={tenant.tenant_id} value={tenant.tenant_id}>
+                      {tenant.tenant_name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div className="flex gap-2 pt-4">

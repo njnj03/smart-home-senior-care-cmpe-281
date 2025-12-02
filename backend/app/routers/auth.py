@@ -4,6 +4,7 @@ from datetime import timedelta, datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models.user import User
 from app.models.tenant import Tenant
@@ -218,11 +219,28 @@ async def list_users(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    List all users (Admin only).
+    List all users with tenant information (Admin only).
+    
+    Returns a list of all users in the system including:
+    - User details (email, name, role, status)
+    - Tenant ID and tenant name
+    - Account status and login information
+    
+    **Access Control:** Admin role required
     """
-    query = select(User)
+    # Query users with tenant relationship loaded
+    query = select(User).options(selectinload(User.tenant))
     result = await db.execute(query)
     users = result.scalars().all()
     
-    return UserListResponse(users=[UserResponse.model_validate(user) for user in users])
+    # Build response with tenant name
+    user_responses = []
+    for user in users:
+        user_dict = UserResponse.model_validate(user).model_dump()
+        # Add tenant name from relationship
+        if user.tenant:
+            user_dict['tenant_name'] = user.tenant.tenant_name
+        user_responses.append(UserResponse(**user_dict))
+    
+    return UserListResponse(users=user_responses)
 

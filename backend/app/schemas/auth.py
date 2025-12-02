@@ -53,6 +53,7 @@ class UserResponse(UserBase):
     model_config = ConfigDict(from_attributes=True)
     user_id: int
     tenant_id: int
+    tenant_name: Optional[str] = None  # Tenant name for display
     is_active: bool
     created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
