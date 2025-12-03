@@ -26,15 +26,24 @@ export default function SignInPage({ onSignIn }){
   const loadTenants = async () => {
     try {
       setTenantsLoading(true)
+      setError('') // Clear any previous errors
       const res = await api.tenants.listPublic()
       setTenants(res.tenants || [])
       // Set default to first tenant if available
       if (res.tenants && res.tenants.length > 0 && !tenantId) {
         setTenantId(res.tenants[0].tenant_id.toString())
+      } else if (!res.tenants || res.tenants.length === 0) {
+        // No tenants available - backend will auto-create one
+        console.log('No tenants found - backend will auto-create default tenant on registration')
+        // Set default tenant_id to 1 (backend will handle if it doesn't exist)
+        setTenantId('1')
       }
     } catch (err) {
       console.error('Error loading tenants:', err)
-      setError('Failed to load tenants. Please refresh the page.')
+      // Don't show error - backend will auto-create tenant if needed
+      // Just set default to 1
+      setTenantId('1')
+      console.log('Using default tenant_id=1 - backend will auto-create if needed')
     } finally {
       setTenantsLoading(false)
     }
@@ -60,10 +69,9 @@ export default function SignInPage({ onSignIn }){
         return
       }
       
+      // If no tenant selected, use default (backend will auto-create)
       if (!tenantId) {
-        setError('Please select a tenant')
-        setLoading(false)
-        return
+        setTenantId('1') // Default to tenant_id 1
       }
       
       try {
@@ -189,7 +197,7 @@ export default function SignInPage({ onSignIn }){
                 <div className="w-full border rounded-xl px-3 py-2 text-gray-500 text-sm">
                   Loading tenants...
                 </div>
-              ) : (
+              ) : tenants.length > 0 ? (
                 <select
                   required
                   className="w-full border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -203,6 +211,10 @@ export default function SignInPage({ onSignIn }){
                     </option>
                   ))}
                 </select>
+              ) : (
+                <div className="w-full border rounded-xl px-3 py-2 text-gray-500 text-sm bg-gray-50">
+                  Default Tenant (will be created automatically)
+                </div>
               )}
             </div>
             <div>
