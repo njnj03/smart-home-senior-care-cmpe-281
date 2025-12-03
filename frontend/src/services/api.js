@@ -135,6 +135,13 @@ const api = {
    */
   tenants: {
     /**
+     * List all active tenants (Public endpoint for registration)
+     */
+    async listPublic() {
+      return api.request('/api/v1/tenants/public');
+    },
+
+    /**
      * List all tenants (Admin only)
      */
     async list() {

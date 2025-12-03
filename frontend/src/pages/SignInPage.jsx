@@ -9,9 +9,36 @@ export default function SignInPage({ onSignIn }){
   const [firstName,setFirstName]=React.useState('')
   const [lastName,setLastName]=React.useState('')
   const [confirmPass,setConfirmPass]=React.useState('')
+  const [tenantId,setTenantId]=React.useState('')
+  const [tenants,setTenants]=React.useState([])
+  const [tenantsLoading,setTenantsLoading]=React.useState(false)
   const [loading,setLoading]=React.useState(false)
   const [error,setError]=React.useState('')
   const [success,setSuccess]=React.useState('')
+  
+  // Load tenants when registration form is shown
+  React.useEffect(() => {
+    if (isRegister) {
+      loadTenants()
+    }
+  }, [isRegister])
+  
+  const loadTenants = async () => {
+    try {
+      setTenantsLoading(true)
+      const res = await api.tenants.listPublic()
+      setTenants(res.tenants || [])
+      // Set default to first tenant if available
+      if (res.tenants && res.tenants.length > 0 && !tenantId) {
+        setTenantId(res.tenants[0].tenant_id.toString())
+      }
+    } catch (err) {
+      console.error('Error loading tenants:', err)
+      setError('Failed to load tenants. Please refresh the page.')
+    } finally {
+      setTenantsLoading(false)
+    }
+  }
   
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -33,13 +60,20 @@ export default function SignInPage({ onSignIn }){
         return
       }
       
+      if (!tenantId) {
+        setError('Please select a tenant')
+        setLoading(false)
+        return
+      }
+      
       try {
         await api.auth.register({
           email,
           password: pass,
           first_name: firstName,
           last_name: lastName,
-          role: 'house_owner'
+          role: 'house_owner',
+          tenant_id: parseInt(tenantId)
         })
         
         setSuccess('Registration successful! Please sign in.')
@@ -48,6 +82,7 @@ export default function SignInPage({ onSignIn }){
         setConfirmPass('')
         setFirstName('')
         setLastName('')
+        setTenantId('')
       } catch (err) {
         console.error('Registration error:', err)
         setError(err.message || 'Registration failed. Please try again.')
@@ -147,16 +182,40 @@ export default function SignInPage({ onSignIn }){
         </div>
         
         {isRegister && (
-          <div>
-            <div className="text-sm text-gray-700 mb-1 font-medium">Confirm Password</div>
-            <input 
-              type="password"
-              required
-              className="w-full border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-              value={confirmPass} 
-              onChange={e=>setConfirmPass(e.target.value)} 
-            />
-          </div>
+          <>
+            <div>
+              <div className="text-sm text-gray-700 mb-1 font-medium">Tenant</div>
+              {tenantsLoading ? (
+                <div className="w-full border rounded-xl px-3 py-2 text-gray-500 text-sm">
+                  Loading tenants...
+                </div>
+              ) : (
+                <select
+                  required
+                  className="w-full border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={tenantId}
+                  onChange={e => setTenantId(e.target.value)}
+                >
+                  <option value="">Select a tenant</option>
+                  {tenants.map(tenant => (
+                    <option key={tenant.tenant_id} value={tenant.tenant_id}>
+                      {tenant.tenant_name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div>
+              <div className="text-sm text-gray-700 mb-1 font-medium">Confirm Password</div>
+              <input 
+                type="password"
+                required
+                className="w-full border rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                value={confirmPass} 
+                onChange={e=>setConfirmPass(e.target.value)} 
+              />
+            </div>
+          </>
         )}
         
         <button 
@@ -174,6 +233,7 @@ export default function SignInPage({ onSignIn }){
               setIsRegister(!isRegister)
               setError('')
               setSuccess('')
+              setTenantId('')
             }}
             className="text-sm text-blue-600 hover:text-blue-800 font-medium"
           >
