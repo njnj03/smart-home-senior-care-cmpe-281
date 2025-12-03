@@ -1,0 +1,19 @@
+[Unit]
+Description=Smart Home Senior Care Backend API
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/smart-home-backend/backend
+Environment="PATH=/opt/smart-home-backend/backend/venv/bin"
+EnvironmentFile=/opt/smart-home-backend/backend/.env
+ExecStart=/opt/smart-home-backend/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
