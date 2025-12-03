@@ -55,6 +55,22 @@ async def create_tenant(
     return TenantResponse.model_validate(new_tenant)
 
 
+@router.get("/public", response_model=TenantListResponse)
+async def list_tenants_public(
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    List all active tenants (Public endpoint for registration).
+    """
+    query = select(Tenant).where(Tenant.is_active == True).order_by(Tenant.tenant_name)
+    result = await db.execute(query)
+    tenants = result.scalars().all()
+    
+    return TenantListResponse(
+        tenants=[TenantResponse.model_validate(tenant) for tenant in tenants]
+    )
+
+
 @router.get("", response_model=TenantListResponse)
 async def list_tenants(
     current_user: User = Depends(require_admin),
