@@ -1,9 +1,16 @@
 /**
  * Real API service for connecting to the FastAPI backend
- * Base URL can be configured via environment variable VITE_API_BASE_URL
+ *
+ * In production behind Nginx, we call the API via relative URLs (same origin),
+ * so requests go to Nginx on port 80 which then proxies `/api` to the backend.
+ *
+ * - In production: leave VITE_API_BASE_URL undefined (defaults to empty string)
+ *   so calls like `/api/v1/...` stay on the same origin as the frontend.
+ * - In local dev: you can set VITE_API_BASE_URL in a `.env` file if needed
+ *   (e.g., `VITE_API_BASE_URL=http://localhost:8000`).
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 const api = {
   /**

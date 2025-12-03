@@ -84,15 +84,34 @@ async def register(
             detail="Email already registered"
         )
     
-    # Validate tenant exists
+    # Validate tenant exists, or find/create default tenant
     tenant_query = select(Tenant).where(Tenant.tenant_id == user_data.tenant_id)
     tenant_result = await db.execute(tenant_query)
     tenant = tenant_result.scalar_one_or_none()
+    
     if not tenant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Tenant {user_data.tenant_id} not found"
-        )
+        # Try to find a default tenant (ID 1 or name "Default Tenant")
+        default_query = select(Tenant).where(
+            (Tenant.tenant_id == 1) | (Tenant.tenant_name == "Default Tenant")
+        ).where(Tenant.is_active == True)
+        default_result = await db.execute(default_query)
+        tenant = default_result.scalar_one_or_none()
+        
+        if not tenant:
+            # Create default tenant if none exists
+            logger.warning(f"Tenant {user_data.tenant_id} not found, creating default tenant")
+            tenant = Tenant(
+                tenant_id=1,
+                tenant_name="Default Tenant",
+                description="Default tenant for new user registrations",
+                is_active=True
+            )
+            db.add(tenant)
+            await db.flush()  # Flush to get the tenant_id
+            logger.info(f"Created default tenant: {tenant.tenant_id}")
+    
+    # Use the tenant's ID (in case we created one or found a different one)
+    final_tenant_id = tenant.tenant_id
     
     # Create new user
     hashed_password = get_password_hash(user_data.password)
@@ -102,7 +121,7 @@ async def register(
         first_name=user_data.first_name,
         last_name=user_data.last_name,
         role=user_data.role,
-        tenant_id=user_data.tenant_id,
+        tenant_id=final_tenant_id,  # Use the resolved tenant ID
         is_active=True
     )
     
